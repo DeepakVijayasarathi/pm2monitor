@@ -13,26 +13,13 @@ const { authenticateToken } = require('./middleware/auth');
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',');
-
 const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
+app.use(cors());
 
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
