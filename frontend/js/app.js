@@ -1,6 +1,8 @@
 Auth.requireAuth();
 
 /* ===== THEME ===== */
+let cpuChart, memChart;
+
 const applyTheme = t => {
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('theme', t);
@@ -103,7 +105,6 @@ document.addEventListener('click', () => document.getElementById('userDrop').cla
 document.getElementById('logoutBtn').onclick = () => Auth.logout();
 
 /* ===== CHARTS ===== */
-let cpuChart, memChart;
 
 function chartColors() {
   const d = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -164,6 +165,8 @@ function onMetrics(data) {
     S.apps = data.processes;
     applyFilters();
     updateStats(data.processes);
+    // Bug fix: dashboard table always updates; apps table only when that section is active
+    renderDashTable(S.apps);
     if (document.getElementById('sec-applications').classList.contains('active')) renderAppsTable();
     if (document.getElementById('sec-ports').classList.contains('active')) renderPortMap();
   }
@@ -200,9 +203,10 @@ function updateStats(apps) {
   document.getElementById('stStopped').textContent = apps.filter(a => a.status === 'stopped').length;
   const errCount = apps.filter(a => a.status === 'errored').length;
   document.getElementById('stErrored').textContent = errCount;
-  const badge = document.getElementById('errBadge');
-  badge.textContent = errCount;
-  badge.classList.toggle('hidden', errCount === 0);
+  // Bug fix: renamed to avoid shadowing the outer badge() function
+  const errBadgeEl = document.getElementById('errBadge');
+  errBadgeEl.textContent = errCount;
+  errBadgeEl.classList.toggle('hidden', errCount === 0);
 }
 
 /* ===== FILTERS ===== */
@@ -229,7 +233,8 @@ function renderAppsTable() {
   if (!S.filtered.length) {
     const msg = S.apps.length === 0 ? '<i class="fa-solid fa-spinner fa-spin"></i> Loading…' : 'No applications match your filters.';
     tbody.innerHTML = `<tr><td colspan="9" class="tl">${msg}</td></tr>`;
-    renderDashTable([]);
+    // Bug fix: dashboard always shows all apps, not the filtered subset
+    renderDashTable(S.apps);
     return;
   }
 
@@ -256,7 +261,7 @@ function renderAppsTable() {
   `).join('');
 
   wireActions();
-  renderDashTable(S.filtered);
+  renderDashTable(S.apps);
   checkDupPorts();
 }
 

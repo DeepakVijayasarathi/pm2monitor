@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const pm2 = require('pm2');
 const si = require('systeminformation');
-const { authenticateToken } = require('./middleware/auth');
+const { authenticateToken, verifyToken } = require('./middleware/auth');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,8 +17,11 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
-// Security middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: false,
+  originAgentCluster: false,
+}));
 app.use(cors());
 
 const limiter = rateLimit({
@@ -39,11 +42,9 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
-// Serve frontend static files
 const FRONTEND = path.resolve(__dirname, '..', 'frontend');
 app.use(express.static(FRONTEND));
 
-// Routes
 const authRoutes = require('./routes/auth');
 const appsRoutes = require('./routes/apps');
 const systemRoutes = require('./routes/system');
@@ -52,32 +53,25 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/apps', authenticateToken, appsRoutes);
 app.use('/api/system', authenticateToken, systemRoutes);
 
-// Fallback to frontend for SPA routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(FRONTEND, 'index.html'));
 });
 
-// Socket.io auth middleware
+// Socket.io auth — verifyToken imported at top, not require'd per-connection
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Authentication required'));
-  const { verifyToken } = require('./middleware/auth');
   const user = verifyToken(token);
   if (!user) return next(new Error('Invalid token'));
   socket.user = user;
   next();
 });
 
-// PM2 connection
 pm2.connect((err) => {
-  if (err) {
-    console.error('PM2 connection error:', err);
-  } else {
-    console.log('Connected to PM2 daemon');
-  }
+  if (err) console.error('PM2 connection error:', err);
+  else console.log('Connected to PM2 daemon');
 });
 
-// Real-time metrics broadcast
 const METRICS_INTERVAL = 3000;
 let metricsInterval;
 
@@ -93,14 +87,10 @@ async function broadcastMetrics() {
     ]);
 
     const diskData = disk.filter(d => d.size > 0).map(d => ({
-      fs: d.fs,
-      mount: d.mount,
-      size: d.size,
-      used: d.used,
-      use: d.use,
+      fs: d.fs, mount: d.mount, size: d.size, used: d.used, use: d.use,
     }));
 
-    const metrics = {
+    io.emit('metrics', {
       cpu: {
         load: Math.round(cpu.currentLoad * 10) / 10,
         cores: cpu.cpus ? cpu.cpus.length : 0,
@@ -114,11 +104,9 @@ async function broadcastMetrics() {
       disk: diskData,
       processes: processes.map(formatProcess),
       timestamp: Date.now(),
-    };
-
-    io.emit('metrics', metrics);
-  } catch (e) {
-    // Silent - metrics are best-effort
+    });
+  } catch (_) {
+    // metrics are best-effort
   }
 }
 
@@ -128,24 +116,15 @@ io.on('connection', (socket) => {
   if (!metricsInterval) {
     metricsInterval = setInterval(broadcastMetrics, METRICS_INTERVAL);
   }
-
   broadcastMetrics();
 
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
-    if (io.engine.clientsCount === 0 && metricsInterval) {
+    // Bug fix: use io.sockets.sockets.size (reliable across Socket.io versions)
+    if (io.sockets.sockets.size === 0 && metricsInterval) {
       clearInterval(metricsInterval);
       metricsInterval = null;
     }
-  });
-
-  // Tail logs for a specific app
-  socket.on('subscribe:logs', (appId) => {
-    socket.join(`logs:${appId}`);
-  });
-
-  socket.on('unsubscribe:logs', (appId) => {
-    socket.leave(`logs:${appId}`);
   });
 });
 
@@ -163,16 +142,12 @@ function formatProcess(proc) {
     instances: env.instances,
     exec_mode: env.exec_mode,
     watching: env.watch,
-    version: env.version,
-    node_version: env.node_version,
     script: env.pm_exec_path,
     cwd: env.pm_cwd,
-    created_at: env.created_at,
     port: env.PORT || env.port || null,
   };
 }
 
-// Export for use in routes
 module.exports = { io, formatProcess };
 
 const PORT = process.env.PORT || 3000;
@@ -180,7 +155,10 @@ server.listen(PORT, () => {
   console.log(`PM2 Monitor running on http://localhost:${PORT}`);
 });
 
-process.on('SIGINT', () => {
+// Bug fix: handle both SIGINT and SIGTERM (Docker sends SIGTERM on stop)
+function shutdown() {
   pm2.disconnect();
   process.exit(0);
-});
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

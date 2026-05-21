@@ -1,5 +1,6 @@
 const express = require('express');
 const pm2 = require('pm2');
+const fs = require('fs');
 
 const router = express.Router();
 
@@ -138,7 +139,6 @@ router.get('/:id/logs', async (req, res) => {
 
     const proc = desc[0];
     const env = proc.pm2_env || {};
-    const fs = require('fs');
     const lines = parseInt(req.query.lines) || 100;
 
     const readLastLines = (filePath, n) => {

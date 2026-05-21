@@ -19,16 +19,11 @@ const SocketManager = (() => {
       updateStatus(true);
     });
 
-    socket.on('disconnect', () => {
-      updateStatus(false);
-    });
+    socket.on('disconnect', () => updateStatus(false));
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', () => {
       reconnectAttempts++;
-      updateStatus(false, `Connection error (${reconnectAttempts}/${MAX_RECONNECT})`);
-      if (reconnectAttempts >= MAX_RECONNECT) {
-        updateStatus(false, 'Disconnected');
-      }
+      updateStatus(false, reconnectAttempts >= MAX_RECONNECT ? 'Disconnected' : `Reconnecting…`);
     });
 
     socket.on('metrics', (data) => {
@@ -43,29 +38,21 @@ const SocketManager = (() => {
     if (socket) socket.on(event, handler);
   }
 
-  function subscribeLogs(appId) {
-    if (socket) socket.emit('subscribe:logs', appId);
-  }
-
-  function unsubscribeLogs(appId) {
-    if (socket) socket.emit('unsubscribe:logs', appId);
-  }
-
   function disconnect() {
     if (socket) { socket.disconnect(); socket = null; }
   }
 
+  // Bug fix: use correct IDs from new HTML (#sDot, #sText)
   function updateStatus(connected, text) {
-    const dot = document.getElementById('connectionStatus')?.querySelector('.status-dot');
-    const statusText = document.getElementById('connectionStatus')?.querySelector('.status-text');
+    const dot = document.getElementById('sDot');
+    const label = document.getElementById('sText');
     if (dot) {
-      dot.classList.toggle('connected', connected);
-      dot.classList.toggle('disconnected', !connected);
+      dot.className = 's-dot' + (connected ? ' live' : ' dead');
     }
-    if (statusText) {
-      statusText.textContent = connected ? 'Live' : (text || 'Disconnected');
+    if (label) {
+      label.textContent = connected ? 'Live' : (text || 'Disconnected');
     }
   }
 
-  return { connect, on, subscribeLogs, unsubscribeLogs, disconnect };
+  return { connect, on, disconnect };
 })();
