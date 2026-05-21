@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>User Management — PM2 Monitor</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="s-logo">
+      <div class="s-logo-icon"><i class="fa-solid fa-gauge-high"></i></div>
+      <div><div class="s-logo-text">PM2 Monitor</div><div class="s-logo-sub">User Management</div></div>
+    </div>
+    <button class="sidebar-close" id="sidebarClose"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <a href="/" class="nav-item"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+    <a href="/#applications" class="nav-item"><i class="fa-solid fa-cubes"></i><span>Applications</span></a>
+    <a href="/#system" class="nav-item"><i class="fa-solid fa-server"></i><span>System</span></a>
+    <a href="/#ports" class="nav-item"><i class="fa-solid fa-network-wired"></i><span>Port Monitor</span></a>
+    <div class="nav-section">Admin</div>
+    <a href="/users.html" class="nav-item active"><i class="fa-solid fa-users"></i><span>User Management</span></a>
+  </nav>
+</aside>
+<div class="sidebar-overlay" id="sOverlay"></div>
+
+<div class="main-wrap">
+  <header class="navbar">
+    <div class="nb-left">
+      <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
+      <h2 class="page-title">User Management</h2>
+    </div>
+    <div class="nb-right">
+      <button class="btn btn-primary btn-sm" id="addUserBtn">
+        <i class="fa-solid fa-user-plus"></i> Add User
+      </button>
+      <button class="icon-btn" id="themeToggle" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+      <div class="user-wrap">
+        <button class="user-btn" id="userBtn">
+          <div class="u-avatar" id="uAvatar">A</div>
+          <span id="uName">Admin</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:.65rem"></i>
+        </button>
+        <div class="user-drop hidden" id="userDrop">
+          <button id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <!-- Permission Matrix -->
+    <div class="section-card" style="margin-bottom:18px">
+      <div class="sc-header">
+        <span class="sc-title"><i class="fa-solid fa-shield-halved"></i> Permission Matrix</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dtable">
+          <thead>
+            <tr>
+              <th>Permission</th>
+              <th><span class="role-badge rb-admin">Admin</span></th>
+              <th><span class="role-badge rb-operator">Operator</span></th>
+              <th><span class="role-badge rb-viewer">Viewer</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>View apps &amp; system stats</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
+            <tr><td>View logs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
+            <tr><td>Restart / Stop / Start apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+            <tr><td>Flush logs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+            <tr><td>Delete apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+            <tr><td>Restart all apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+            <tr><td>Manage users</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="section-card">
+      <div class="sc-header">
+        <span class="sc-title"><i class="fa-solid fa-users"></i> Users <span id="userCount" class="nav-badge" style="margin-left:8px;position:static"></span></span>
+        <div class="sc-actions">
+          <button class="btn btn-ghost btn-sm" id="refreshUsers"><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
+      </div>
+      <div class="t-wrap">
+        <table class="dtable">
+          <thead>
+            <tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="usersTbody">
+            <tr><td colspan="4" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add / Edit User Modal -->
+<div class="modal-ov hidden" id="userModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3 id="modalTitle"><i class="fa-solid fa-user-plus"></i> Add User</h3>
+      <button class="m-close" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fa-solid fa-user"></i> Username</label>
+        <input type="text" id="mUsername" class="fi" style="width:100%" placeholder="Enter username"/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px" id="pwdGroup">
+        <label><i class="fa-solid fa-lock"></i> Password</label>
+        <input type="password" id="mPassword" class="fi" style="width:100%" placeholder="Enter password (min 6 chars)"/>
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label><i class="fa-solid fa-shield-halved"></i> Role</label>
+        <select id="mRole" class="sel" style="width:100%">
+          <option value="viewer">Viewer — read only</option>
+          <option value="operator">Operator — can restart/stop/start</option>
+          <option value="admin">Admin — full access</option>
+        </select>
+      </div>
+      <div id="modalErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" id="modalSave">
+          <i class="fa-solid fa-check"></i> Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-ov hidden" id="pwdModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-key"></i> Change Password</h3>
+      <button class="m-close" id="pwdModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>New password for <strong id="pwdTargetName"></strong></label>
+        <input type="password" id="newPassword" class="fi" style="width:100%" placeholder="Min 6 characters"/>
+      </div>
+      <div id="pwdErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="pwdCancel">Cancel</button>
+        <button class="btn btn-primary" id="pwdSave"><i class="fa-solid fa-key"></i> Update Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="js/auth.js"></script>
+<script src="js/users.js"></script>
+</body>
+</html>

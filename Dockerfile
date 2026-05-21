@@ -18,6 +18,10 @@ ENV PORT=5004 \
     ADMIN_PASSWORD=changeme \
     CORS_ORIGINS=*
 
+RUN mkdir -p /app/backend/data
+
+VOLUME ["/app/backend/data"]
+
 EXPOSE 5004
 
 CMD ["node", "backend/server.js"]

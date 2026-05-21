@@ -93,9 +93,18 @@ document.getElementById('themeToggle').onclick = () =>
 
 /* ===== USER MENU ===== */
 const user = Auth.getUser();
+const isAdmin    = user?.role === 'admin';
+const isOperator = user?.role === 'admin' || user?.role === 'operator';
 if (user) {
   document.getElementById('uName').textContent = user.username;
   document.getElementById('uAvatar').textContent = user.username[0].toUpperCase();
+  if (isAdmin) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (!isAdmin) {
+    const rab = document.getElementById('restartAllBtn');
+    if (rab) rab.classList.add('hidden');
+    const fab = document.getElementById('fab');
+    if (fab) fab.classList.add('hidden');
+  }
 }
 document.getElementById('userBtn').onclick = e => {
   e.stopPropagation();
@@ -241,7 +250,12 @@ function renderAppsTable() {
   tbody.innerHTML = S.filtered.map(a => `
     <tr>
       <td class="mono" style="color:var(--text-3)">${a.id}</td>
-      <td><strong>${esc(a.name)}</strong></td>
+      <td>
+        <a href="/app-detail.html?id=${a.id}" style="font-weight:600;color:var(--text);text-decoration:none;transition:color .18s"
+           onmouseover="this.style.color='var(--indigo)'" onmouseout="this.style.color='var(--text)'">
+          ${esc(a.name)}
+        </a>
+      </td>
       <td>${badge(a.status)}</td>
       <td>${a.cpu ?? 0}%</td>
       <td>${fmtBytes(a.memory)}</td>
@@ -250,11 +264,15 @@ function renderAppsTable() {
       <td>${a.port ? `<span class="mono">:${a.port}</span>` : '—'}</td>
       <td>
         <div class="act-row" data-id="${a.id}" data-name="${esc(a.name)}">
+          <a href="/app-detail.html?id=${a.id}" class="act-btn ab-log" title="Detail"><i class="fa-solid fa-chart-line"></i></a>
+          ${isOperator ? `
           <button class="act-btn ab-start" data-action="start" title="Start"><i class="fa-solid fa-play"></i></button>
           <button class="act-btn ab-restart" data-action="restart" title="Restart"><i class="fa-solid fa-rotate-right"></i> Restart</button>
           <button class="act-btn ab-stop" data-action="stop" title="Stop"><i class="fa-solid fa-stop"></i></button>
-          <button class="act-btn ab-log" data-action="logs" title="Logs"><i class="fa-solid fa-terminal"></i></button>
+          ` : ''}
+          ${isAdmin ? `
           <button class="act-btn ab-del" data-action="delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
+          ` : ''}
         </div>
       </td>
     </tr>
@@ -271,19 +289,27 @@ function renderDashTable(apps) {
   if (!apps.length) { el.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-3)">No applications.</p>'; return; }
   el.innerHTML = `
     <table class="dtable">
-      <thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>Memory</th><th>Uptime</th><th>Quick Action</th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>Memory</th><th>Uptime</th><th>${isOperator ? 'Quick Action' : 'Detail'}</th></tr></thead>
       <tbody>
         ${apps.map(a => `
           <tr>
-            <td><strong>${esc(a.name)}</strong></td>
+            <td>
+              <a href="/app-detail.html?id=${a.id}" style="font-weight:600;color:var(--text);text-decoration:none"
+                 onmouseover="this.style.color='var(--indigo)'" onmouseout="this.style.color='var(--text)'">
+                ${esc(a.name)}
+              </a>
+            </td>
             <td>${badge(a.status)}</td>
             <td>${a.cpu ?? 0}%</td>
             <td>${fmtBytes(a.memory)}</td>
             <td>${fmtUp(a.uptime)}</td>
             <td>
-              <button class="restart-pill" data-id="${a.id}" data-name="${esc(a.name)}">
-                <i class="fa-solid fa-rotate-right"></i> Restart
-              </button>
+              ${isOperator
+                ? `<button class="restart-pill" data-id="${a.id}" data-name="${esc(a.name)}">
+                    <i class="fa-solid fa-rotate-right"></i> Restart
+                   </button>`
+                : `<a href="/app-detail.html?id=${a.id}" class="act-btn ab-log" style="text-decoration:none"><i class="fa-solid fa-chart-line"></i> View</a>`
+              }
             </td>
           </tr>
         `).join('')}
@@ -497,8 +523,10 @@ document.getElementById('tabErr').onclick = () => {
   document.getElementById('tabOut').classList.remove('active');
   fetchLogs();
 };
-document.getElementById('flushBtn').onclick = async () => {
-  if (!S.logsId || !confirm('Flush logs?')) return;
+const flushBtn = document.getElementById('flushBtn');
+if (!isOperator) flushBtn.classList.add('hidden');
+flushBtn.onclick = async () => {
+  if (!S.logsId) return;
   try { await Auth.apiFetch(`/apps/${S.logsId}/flush`, { method: 'POST' }); logPre.textContent = ''; toast('Flushed', 'success'); }
   catch (e) { toast('Flush failed', 'error'); }
 };

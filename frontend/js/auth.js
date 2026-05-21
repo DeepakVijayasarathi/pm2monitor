@@ -59,12 +59,18 @@ const Auth = (() => {
     return data;
   }
 
-  // Guard: redirect to login if not authenticated (call on protected pages)
   function requireAuth() {
     if (!isAuthenticated()) {
       window.location.href = '/login.html';
     }
   }
 
-  return { getToken, getUser, login, logout, apiFetch, isAuthenticated, requireAuth };
+  function requireAdmin() {
+    const user = getUser();
+    if (!user || user.role !== 'admin') {
+      window.location.href = '/';
+    }
+  }
+
+  return { getToken, getUser, login, logout, apiFetch, isAuthenticated, requireAuth, requireAdmin };
 })();

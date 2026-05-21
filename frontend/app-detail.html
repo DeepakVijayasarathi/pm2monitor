@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>App Detail — PM2 Monitor</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="s-logo">
+      <div class="s-logo-icon"><i class="fa-solid fa-gauge-high"></i></div>
+      <div><div class="s-logo-text">PM2 Monitor</div><div class="s-logo-sub">App Detail</div></div>
+    </div>
+    <button class="sidebar-close" id="sidebarClose"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Navigation</div>
+    <a href="/" class="nav-item"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+    <a href="/#applications" class="nav-item"><i class="fa-solid fa-cubes"></i><span>Applications</span></a>
+    <a href="/#system" class="nav-item"><i class="fa-solid fa-server"></i><span>System</span></a>
+    <a href="/#ports" class="nav-item"><i class="fa-solid fa-network-wired"></i><span>Port Monitor</span></a>
+    <div class="nav-section">Admin</div>
+    <a href="/users.html" class="nav-item admin-only hidden"><i class="fa-solid fa-users"></i><span>User Management</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="conn-status"><span class="s-dot" id="sDot"></span><span id="sText">Connecting…</span></div>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sOverlay"></div>
+
+<div class="main-wrap">
+  <header class="navbar">
+    <div class="nb-left">
+      <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
+      <a href="/" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
+      <h2 class="page-title" id="appName">Loading…</h2>
+      <span id="appBadge"></span>
+    </div>
+    <div class="nb-right">
+      <div class="action-strip" id="actionStrip"></div>
+      <button class="icon-btn" id="themeToggle" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+      <div class="user-wrap">
+        <button class="user-btn" id="userBtn">
+          <div class="u-avatar" id="uAvatar">A</div>
+          <span id="uName">Admin</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:.65rem"></i>
+        </button>
+        <div class="user-drop hidden" id="userDrop">
+          <button id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <!-- Info + Charts row -->
+    <div class="detail-grid">
+      <!-- Left: app info -->
+      <div class="info-card">
+        <div class="ic-title"><i class="fa-solid fa-circle-info"></i> Application Info</div>
+        <div id="appInfo"><div class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div></div>
+      </div>
+
+      <!-- Right: live charts -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="info-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span class="ic-title" style="margin:0"><i class="fa-solid fa-microchip"></i> CPU Usage</span>
+            <span class="chart-badge" style="background:var(--indigo-dim);color:var(--indigo)" id="liveCpu">0%</span>
+          </div>
+          <canvas id="cpuChart" height="80"></canvas>
+        </div>
+        <div class="info-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span class="ic-title" style="margin:0"><i class="fa-solid fa-memory"></i> Memory Usage</span>
+            <span class="chart-badge" style="background:var(--green-dim);color:var(--green)" id="liveMem">0 MB</span>
+          </div>
+          <canvas id="memChart" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="section-card">
+      <div class="sc-header">
+        <span class="sc-title"><i class="fa-solid fa-terminal"></i> Logs</span>
+        <div class="sc-actions">
+          <!-- Tab toggles -->
+          <button class="tab-btn active" id="tabOut">stdout</button>
+          <button class="tab-btn" id="tabErr">stderr</button>
+          <!-- Search -->
+          <div class="log-search-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="logSearch" placeholder="Search logs…"/>
+            <span id="matchCount" class="match-count hidden">0 matches</span>
+          </div>
+          <!-- Lines selector -->
+          <select id="linesSelect" class="sel" style="width:90px">
+            <option value="100">100 lines</option>
+            <option value="200" selected>200 lines</option>
+            <option value="500">500 lines</option>
+            <option value="1000">1000 lines</option>
+          </select>
+          <label class="chk-lbl"><input type="checkbox" id="autoRefresh" checked/> Auto</label>
+          <button class="btn btn-ghost btn-sm" id="refreshLogs"><i class="fa-solid fa-rotate-right"></i></button>
+          <button class="btn btn-sm btn-danger flush-only hidden" id="flushLogs"><i class="fa-solid fa-trash"></i> Flush</button>
+          <button class="btn btn-ghost btn-sm" id="downloadLogs" title="Download log"><i class="fa-solid fa-download"></i></button>
+        </div>
+      </div>
+      <div style="position:relative">
+        <div class="log-stats" id="logStats"></div>
+        <pre class="log-pre" id="logPre">Loading logs…</pre>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="js/auth.js"></script>
+<script src="js/socket.js"></script>
+<script src="js/detail.js"></script>
+</body>
+</html>
