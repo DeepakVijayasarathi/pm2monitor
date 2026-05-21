@@ -74,7 +74,7 @@ function showSection(name) {
   if (name === 'system') loadSystem();
   if (name === 'ports') renderPortMap();
 }
-document.querySelectorAll('.nav-item').forEach(n =>
+document.querySelectorAll('.nav-item[data-section]').forEach(n =>
   n.addEventListener('click', e => { e.preventDefault(); showSection(n.dataset.section); closeSidebar(); })
 );
 
