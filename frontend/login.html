@@ -1,132 +1,96 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>PM2 Monitor — Login</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
 </head>
 <body class="login-body">
   <div class="login-container">
     <div class="login-card">
       <div class="login-logo">
-        <i class="fa-solid fa-gauge-high"></i>
+        <div class="logo-icon"><i class="fa-solid fa-gauge-high"></i></div>
         <h1>PM2 Monitor</h1>
         <p>Process Management Dashboard</p>
       </div>
 
       <form id="loginForm" class="login-form" novalidate>
         <div class="form-group">
-          <label for="username">
-            <i class="fa-solid fa-user"></i> Username
-          </label>
-          <input
-            type="text"
-            id="username"
-            name="username"
-            placeholder="Enter username"
-            autocomplete="username"
-            required
-          />
+          <label><i class="fa-solid fa-user"></i> Username</label>
+          <input type="text" id="username" placeholder="Enter username" autocomplete="username" required/>
         </div>
-
         <div class="form-group">
-          <label for="password">
-            <i class="fa-solid fa-lock"></i> Password
-          </label>
-          <div class="input-with-icon">
-            <input
-              type="password"
-              id="password"
-              name="password"
-              placeholder="Enter password"
-              autocomplete="current-password"
-              required
-            />
-            <button type="button" id="togglePassword" class="toggle-password" aria-label="Toggle password visibility">
+          <label><i class="fa-solid fa-lock"></i> Password</label>
+          <div class="input-wrap">
+            <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required/>
+            <button type="button" id="eyeBtn" class="eye-btn" aria-label="Toggle password">
               <i class="fa-solid fa-eye"></i>
             </button>
           </div>
         </div>
-
-        <div id="loginError" class="alert alert-error hidden"></div>
-
+        <div id="loginErr" class="alert-error hidden"></div>
         <button type="submit" id="loginBtn" class="btn btn-primary btn-full">
           <i class="fa-solid fa-right-to-bracket"></i>
-          <span>Sign In</span>
-          <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
+          <span id="btnTxt">Sign In</span>
+          <span id="btnSpin" class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
         </button>
       </form>
 
       <div class="login-footer">
-        <button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle theme">
-          <i class="fa-solid fa-moon"></i> Dark Mode
-        </button>
+        <button class="theme-btn" id="themeBtn"></button>
       </div>
     </div>
   </div>
 
   <script src="js/auth.js"></script>
   <script>
-    // Redirect if already logged in
-    if (Auth.isAuthenticated()) {
-      window.location.href = '/';
-    }
+    if (Auth.isAuthenticated()) window.location.href = '/';
 
-    const form = document.getElementById('loginForm');
-    const loginBtn = document.getElementById('loginBtn');
-    const loginError = document.getElementById('loginError');
-    const togglePassword = document.getElementById('togglePassword');
-    const passwordInput = document.getElementById('password');
-
-    togglePassword.addEventListener('click', () => {
-      const isText = passwordInput.type === 'text';
-      passwordInput.type = isText ? 'password' : 'text';
-      togglePassword.querySelector('i').className = isText ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
-    });
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      loginError.classList.add('hidden');
-      loginBtn.disabled = true;
-      loginBtn.querySelector('.btn-spinner').classList.remove('hidden');
-      loginBtn.querySelector('span:first-of-type').classList.add('hidden');
-
-      try {
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
-        await Auth.login(username, password);
-        window.location.href = '/';
-      } catch (err) {
-        loginError.textContent = err.message || 'Login failed. Please try again.';
-        loginError.classList.remove('hidden');
-      } finally {
-        loginBtn.disabled = false;
-        loginBtn.querySelector('.btn-spinner').classList.add('hidden');
-        loginBtn.querySelector('span:first-of-type').classList.remove('hidden');
-      }
-    });
-
-    // Theme toggle
-    const themeToggle = document.getElementById('themeToggle');
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeBtn(savedTheme);
-
-    themeToggle.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('theme', next);
-      updateThemeBtn(next);
-    });
-
-    function updateThemeBtn(theme) {
-      themeToggle.innerHTML = theme === 'dark'
+    const applyTheme = t => {
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+      document.getElementById('themeBtn').innerHTML = t === 'dark'
         ? '<i class="fa-solid fa-sun"></i> Light Mode'
         : '<i class="fa-solid fa-moon"></i> Dark Mode';
-    }
+    };
+    applyTheme(localStorage.getItem('theme') || 'dark');
+    document.getElementById('themeBtn').addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    const eyeBtn = document.getElementById('eyeBtn');
+    const pwdInput = document.getElementById('password');
+    eyeBtn.addEventListener('click', () => {
+      const show = pwdInput.type === 'text';
+      pwdInput.type = show ? 'password' : 'text';
+      eyeBtn.querySelector('i').className = show ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const err = document.getElementById('loginErr');
+      const btn = document.getElementById('loginBtn');
+      err.classList.add('hidden');
+      btn.disabled = true;
+      document.getElementById('btnTxt').classList.add('hidden');
+      document.getElementById('btnSpin').classList.remove('hidden');
+      try {
+        await Auth.login(
+          document.getElementById('username').value.trim(),
+          document.getElementById('password').value
+        );
+        window.location.href = '/';
+      } catch (ex) {
+        err.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + (ex.message || 'Login failed');
+        err.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        document.getElementById('btnTxt').classList.remove('hidden');
+        document.getElementById('btnSpin').classList.add('hidden');
+      }
+    });
   </script>
 </body>
 </html>

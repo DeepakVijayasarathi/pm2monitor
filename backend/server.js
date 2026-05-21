@@ -24,18 +24,7 @@ const io = new Server(server, {
 });
 
 // Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com'],
-      fontSrc: ["'self'", 'fonts.gstatic.com', 'cdnjs.cloudflare.com'],
-      connectSrc: ["'self'", 'ws:', 'wss:'],
-      imgSrc: ["'self'", 'data:'],
-    },
-  },
-}));
+app.use(helmet({ contentSecurityPolicy: false }));
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -64,11 +53,8 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
 // Serve frontend static files
-app.use(express.static(path.join(__dirname, '..', 'frontend'), {
-  setHeaders: (res) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-  },
-}));
+const FRONTEND = path.resolve(__dirname, '..', 'frontend');
+app.use(express.static(FRONTEND));
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -81,7 +67,7 @@ app.use('/api/system', authenticateToken, systemRoutes);
 
 // Fallback to frontend for SPA routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+  res.sendFile(path.join(FRONTEND, 'index.html'));
 });
 
 // Socket.io auth middleware
