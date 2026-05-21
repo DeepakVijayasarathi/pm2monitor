@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PM2 Monitor</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span class="sidebar-title">PM2 Monitor</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-item active" data-section="dashboard">
+        <i class="fa-solid fa-house"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#applications" class="nav-item" data-section="applications">
+        <i class="fa-solid fa-cubes"></i>
+        <span>Applications</span>
+      </a>
+      <a href="#system" class="nav-item" data-section="system">
+        <i class="fa-solid fa-server"></i>
+        <span>System</span>
+      </a>
+      <a href="#ports" class="nav-item" data-section="ports">
+        <i class="fa-solid fa-network-wired"></i>
+        <span>Port Monitor</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">Connecting…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Main Content -->
+  <div class="main-wrapper">
+    <!-- Navbar -->
+    <header class="navbar">
+      <div class="navbar-left">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle sidebar">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <h2 class="page-title" id="pageTitle">Dashboard</h2>
+      </div>
+
+      <div class="navbar-right">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="globalSearch" placeholder="Search applications…" aria-label="Search applications" />
+        </div>
+
+        <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+
+        <button class="icon-btn" id="refreshBtn" aria-label="Refresh data" title="Refresh">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+
+        <div class="user-menu" id="userMenu">
+          <button class="user-btn" id="userBtn" aria-label="User menu">
+            <i class="fa-solid fa-user-circle"></i>
+            <span id="usernameDisplay">Admin</span>
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown hidden" id="userDropdown">
+            <button id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="content" id="mainContent">
+
+      <!-- ===== DASHBOARD SECTION ===== -->
+      <section id="section-dashboard" class="section active">
+        <!-- Summary Cards -->
+        <div class="cards-grid" id="summaryCards">
+          <div class="card card-stat" id="card-total">
+            <div class="card-icon"><i class="fa-solid fa-cubes"></i></div>
+            <div class="card-info">
+              <div class="card-value" id="statTotal">—</div>
+              <div class="card-label">Total Apps</div>
+            </div>
+          </div>
+          <div class="card card-stat card-online" id="card-online">
+            <div class="card-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="card-info">
+              <div class="card-value" id="statOnline">—</div>
+              <div class="card-label">Online</div>
+            </div>
+          </div>
+          <div class="card card-stat card-stopped" id="card-stopped">
+            <div class="card-icon"><i class="fa-solid fa-circle-stop"></i></div>
+            <div class="card-info">
+              <div class="card-value" id="statStopped">—</div>
+              <div class="card-label">Stopped</div>
+            </div>
+          </div>
+          <div class="card card-stat card-errored" id="card-errored">
+            <div class="card-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
+            <div class="card-info">
+              <div class="card-value" id="statErrored">—</div>
+              <div class="card-label">Errored</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Overview Row -->
+        <div class="metrics-row">
+          <div class="card metric-card">
+            <div class="metric-header">
+              <span><i class="fa-solid fa-microchip"></i> CPU</span>
+              <span class="metric-value" id="cpuValue">—%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill cpu-fill" id="cpuBar"></div></div>
+            <div class="metric-sub" id="cpuSub">Loading…</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-header">
+              <span><i class="fa-solid fa-memory"></i> RAM</span>
+              <span class="metric-value" id="ramValue">—%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill ram-fill" id="ramBar"></div></div>
+            <div class="metric-sub" id="ramSub">Loading…</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-header">
+              <span><i class="fa-solid fa-hard-drive"></i> Disk</span>
+              <span class="metric-value" id="diskValue">—%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill disk-fill" id="diskBar"></div></div>
+            <div class="metric-sub" id="diskSub">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-row">
+          <div class="card chart-card">
+            <h3 class="chart-title"><i class="fa-solid fa-chart-line"></i> CPU Usage History</h3>
+            <canvas id="cpuChart"></canvas>
+          </div>
+          <div class="card chart-card">
+            <h3 class="chart-title"><i class="fa-solid fa-chart-area"></i> Memory Usage History</h3>
+            <canvas id="memChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Quick App List -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-cubes"></i> Applications Overview</h3>
+            <button class="btn btn-sm btn-danger" id="restartAllBtn">
+              <i class="fa-solid fa-rotate-right"></i> Restart All
+            </button>
+          </div>
+          <div id="dashboardAppsTable"></div>
+        </div>
+      </section>
+
+      <!-- ===== APPLICATIONS SECTION ===== -->
+      <section id="section-applications" class="section">
+        <div class="section-toolbar">
+          <div class="filter-group">
+            <select id="statusFilter" class="filter-select">
+              <option value="">All Status</option>
+              <option value="online">Online</option>
+              <option value="stopped">Stopped</option>
+              <option value="errored">Errored</option>
+              <option value="launching">Launching</option>
+            </select>
+            <select id="modeFilter" class="filter-select">
+              <option value="">All Modes</option>
+              <option value="fork">Fork</option>
+              <option value="cluster">Cluster</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="refreshAppsBtn">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+
+        <div class="card">
+          <div id="appsTableWrapper">
+            <table class="data-table" id="appsTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>CPU</th>
+                  <th>Memory</th>
+                  <th>Restarts</th>
+                  <th>Uptime</th>
+                  <th>Port</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="appsTableBody">
+                <tr><td colspan="9" class="table-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Duplicate Port Warning -->
+        <div id="duplicatePortAlert" class="alert alert-warning hidden">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="duplicatePortMsg"></span>
+        </div>
+      </section>
+
+      <!-- ===== SYSTEM SECTION ===== -->
+      <section id="section-system" class="section">
+        <div class="system-grid">
+          <div class="card">
+            <h3 class="section-card-title"><i class="fa-solid fa-microchip"></i> CPU Details</h3>
+            <div id="cpuDetails" class="info-list">Loading…</div>
+          </div>
+          <div class="card">
+            <h3 class="section-card-title"><i class="fa-solid fa-memory"></i> Memory Details</h3>
+            <div id="memDetails" class="info-list">Loading…</div>
+          </div>
+          <div class="card">
+            <h3 class="section-card-title"><i class="fa-solid fa-desktop"></i> OS Info</h3>
+            <div id="osDetails" class="info-list">Loading…</div>
+          </div>
+          <div class="card">
+            <h3 class="section-card-title"><i class="fa-solid fa-hard-drive"></i> Disk Usage</h3>
+            <div id="diskDetails" class="info-list">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Per-core CPU -->
+        <div class="card">
+          <h3 class="section-card-title"><i class="fa-solid fa-chart-bar"></i> Per-Core CPU</h3>
+          <div id="perCoreContainer" class="per-core-grid">Loading…</div>
+        </div>
+      </section>
+
+      <!-- ===== PORT MONITOR SECTION ===== -->
+      <section id="section-ports" class="section">
+        <div class="card">
+          <h3 class="section-card-title"><i class="fa-solid fa-network-wired"></i> Port Checker</h3>
+          <div class="port-checker-form">
+            <input type="text" id="portInput" class="filter-input" placeholder="e.g. 3000,8080,8443" />
+            <button class="btn btn-primary" id="checkPortsBtn">
+              <i class="fa-solid fa-search"></i> Check Ports
+            </button>
+          </div>
+          <div id="portResults" class="port-results"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-card-title"><i class="fa-solid fa-cubes"></i> App Port Map</h3>
+          <div id="appPortMap" class="info-list">Loading…</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Live Logs Modal -->
+  <div class="modal-overlay hidden" id="logsModalOverlay">
+    <div class="modal" id="logsModal" role="dialog" aria-modal="true" aria-labelledby="logsModalTitle">
+      <div class="modal-header">
+        <h3 id="logsModalTitle"><i class="fa-solid fa-terminal"></i> Logs</h3>
+        <div class="modal-actions">
+          <button class="btn btn-sm" id="logsTabOut" data-tab="out">stdout</button>
+          <button class="btn btn-sm btn-ghost" id="logsTabErr" data-tab="err">stderr</button>
+          <button class="btn btn-sm btn-danger" id="flushLogsBtn">
+            <i class="fa-solid fa-trash"></i> Flush
+          </button>
+          <button class="modal-close" id="logsModalClose" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <pre class="log-output" id="logOutput"></pre>
+      </div>
+      <div class="modal-footer">
+        <label class="checkbox-label">
+          <input type="checkbox" id="autoScrollCheck" checked /> Auto-scroll
+        </label>
+        <span class="modal-app-name" id="logsAppName"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script src="js/auth.js"></script>
+  <script src="js/socket.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
