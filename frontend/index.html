@@ -111,29 +111,41 @@
       </div>
 
       <div class="metrics-row">
-        <div class="metric-card">
-          <div class="mc-top">
-            <span class="mc-label"><i class="fa-solid fa-microchip"></i> CPU</span>
-            <span class="mc-val" id="mcCpu">—%</span>
+        <!-- CPU -->
+        <div class="metric-card mc-cpu">
+          <div class="mc-icon"><i class="fa-solid fa-microchip"></i></div>
+          <div class="mc-body">
+            <div class="mc-head">
+              <span class="mc-name">CPU Usage</span>
+              <span class="mc-val" id="mcCpu">—%</span>
+            </div>
+            <div class="pbar"><div class="pfill cpu" id="pbCpu" style="width:0%"></div></div>
+            <div class="mc-detail" id="mcCpuSub">— cores</div>
           </div>
-          <div class="pbar"><div class="pfill cpu" id="pbCpu" style="width:0%"></div></div>
-          <div class="mc-sub" id="mcCpuSub">Loading…</div>
         </div>
-        <div class="metric-card">
-          <div class="mc-top">
-            <span class="mc-label"><i class="fa-solid fa-memory"></i> RAM</span>
-            <span class="mc-val" id="mcRam">—%</span>
+        <!-- RAM -->
+        <div class="metric-card mc-ram">
+          <div class="mc-icon"><i class="fa-solid fa-memory"></i></div>
+          <div class="mc-body">
+            <div class="mc-head">
+              <span class="mc-name">Memory</span>
+              <span class="mc-val" id="mcRam">—%</span>
+            </div>
+            <div class="pbar"><div class="pfill ram" id="pbRam" style="width:0%"></div></div>
+            <div class="mc-detail" id="mcRamSub">— / —</div>
           </div>
-          <div class="pbar"><div class="pfill ram" id="pbRam" style="width:0%"></div></div>
-          <div class="mc-sub" id="mcRamSub">Loading…</div>
         </div>
-        <div class="metric-card">
-          <div class="mc-top">
-            <span class="mc-label"><i class="fa-solid fa-hard-drive"></i> Disk</span>
-            <span class="mc-val" id="mcDisk">—%</span>
+        <!-- DISK -->
+        <div class="metric-card mc-disk">
+          <div class="mc-icon"><i class="fa-solid fa-hard-drive"></i></div>
+          <div class="mc-body">
+            <div class="mc-head">
+              <span class="mc-name">Disk</span>
+              <span class="mc-val" id="mcDisk">—%</span>
+            </div>
+            <div class="pbar"><div class="pfill dsk" id="pbDisk" style="width:0%"></div></div>
+            <div class="mc-detail" id="mcDiskSub">— / —</div>
           </div>
-          <div class="pbar"><div class="pfill dsk" id="pbDisk" style="width:0%"></div></div>
-          <div class="mc-sub" id="mcDiskSub">Loading…</div>
         </div>
       </div>
 
