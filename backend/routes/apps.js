@@ -2,8 +2,24 @@ const express = require('express');
 const pm2 = require('pm2');
 const fs = require('fs');
 const { requireRole } = require('../middleware/auth');
+const { canAccessApp } = require('../users');
 
 const router = express.Router();
+
+// Resolves :id to its pm2 process name and blocks access if the user isn't allowed to see it
+async function requireAppAccess(req, res, next) {
+  try {
+    const d = await pm2Describe(req.params.id);
+    if (!d || !d.length) return res.status(404).json({ error: 'Application not found' });
+    if (!canAccessApp(req.user, d[0].name)) {
+      return res.status(403).json({ error: 'You do not have access to this application' });
+    }
+    req.pm2App = d[0];
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to look up application', detail: err.message });
+  }
+}
 
 // ---- PM2 helpers ----
 const pm2List     = () => new Promise((res, rej) => pm2.list((e, l) => e ? rej(e) : res(l)));
@@ -54,11 +70,11 @@ router.post('/restart-all', requireRole('admin'), async (req, res) => {
   }
 });
 
-// GET / — all authenticated users (viewer, operator, admin)
+// GET / — all authenticated users (viewer, operator, admin), filtered to allowed apps
 router.get('/', async (req, res) => {
   try {
     const list = await pm2List();
-    const apps = list.map(fmt);
+    const apps = list.map(fmt).filter(a => canAccessApp(req.user, a.name));
     res.json({ apps, duplicatePorts: dupPorts(apps) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list applications', detail: err.message });
@@ -66,21 +82,18 @@ router.get('/', async (req, res) => {
 });
 
 // GET /:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAppAccess, async (req, res) => {
   try {
-    const d = await pm2Describe(req.params.id);
-    if (!d || !d.length) return res.status(404).json({ error: 'Application not found' });
-    res.json(fmt(d[0]));
+    res.json(fmt(req.pm2App));
   } catch (err) {
     res.status(500).json({ error: 'Failed to get application', detail: err.message });
   }
 });
 
 // GET /:id/logs
-router.get('/:id/logs', async (req, res) => {
+router.get('/:id/logs', requireAppAccess, async (req, res) => {
   try {
-    const d = await pm2Describe(req.params.id);
-    if (!d || !d.length) return res.status(404).json({ error: 'Application not found' });
+    const d = [req.pm2App];
     const env = d[0].pm2_env || {};
     const lines = Math.min(parseInt(req.query.lines) || 200, 2000);
 
@@ -103,7 +116,7 @@ router.get('/:id/logs', async (req, res) => {
 });
 
 // POST /:id/restart — operator + admin
-router.post('/:id/restart', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/restart', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('restart', req.params.id);
     res.json({ message: `Restarted ${req.params.id}` });
@@ -113,7 +126,7 @@ router.post('/:id/restart', requireRole('operator', 'admin'), async (req, res) =
 });
 
 // POST /:id/stop — operator + admin
-router.post('/:id/stop', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/stop', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('stop', req.params.id);
     res.json({ message: `Stopped ${req.params.id}` });
@@ -123,7 +136,7 @@ router.post('/:id/stop', requireRole('operator', 'admin'), async (req, res) => {
 });
 
 // POST /:id/start — operator + admin
-router.post('/:id/start', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/start', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('start', req.params.id);
     res.json({ message: `Started ${req.params.id}` });
@@ -133,7 +146,7 @@ router.post('/:id/start', requireRole('operator', 'admin'), async (req, res) => 
 });
 
 // POST /:id/flush — operator + admin
-router.post('/:id/flush', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/flush', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
   try {
     await pm2Flush(req.params.id);
     res.json({ message: `Logs flushed for ${req.params.id}` });

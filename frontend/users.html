@@ -94,7 +94,7 @@
       <div class="t-wrap">
         <table class="dtable">
           <thead>
-            <tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+            <tr><th>Username</th><th>Role</th><th>Apps</th><th>Created</th><th>Actions</th></tr>
           </thead>
           <tbody id="usersTbody">
             <tr><td colspan="4" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
@@ -122,13 +122,21 @@
         <label><i class="fa-solid fa-lock"></i> Password</label>
         <input type="password" id="mPassword" class="fi" style="width:100%" placeholder="Enter password (min 6 chars)"/>
       </div>
-      <div class="form-group" style="margin-bottom:20px">
+      <div class="form-group" style="margin-bottom:14px">
         <label><i class="fa-solid fa-shield-halved"></i> Role</label>
         <select id="mRole" class="sel" style="width:100%">
           <option value="viewer">Viewer — read only</option>
           <option value="operator">Operator — can restart/stop/start</option>
           <option value="admin">Admin — full access</option>
         </select>
+      </div>
+      <div class="form-group" style="margin-bottom:20px" id="appsGroup">
+        <label><i class="fa-solid fa-cubes"></i> Allowed Apps</label>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Leave "All apps" checked to grant access to every application, including ones added later.</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:600">
+          <input type="checkbox" id="mAllApps" checked/> All apps
+        </label>
+        <div id="mAppList" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:none"></div>
       </div>
       <div id="modalErr" class="alert-error hidden" style="margin-bottom:14px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">

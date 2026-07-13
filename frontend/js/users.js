@@ -54,6 +54,65 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
 }
 
+/* ===== LOAD APPS (for allowed-apps checklist) ===== */
+let appNames = [];
+
+async function loadAppNames() {
+  try {
+    const data = await Auth.apiFetch('/apps');
+    appNames = (data.apps || []).map(a => a.name);
+  } catch (e) {
+    appNames = [];
+  }
+}
+
+function renderAppChecklist(selected) {
+  const list = document.getElementById('mAppList');
+  list.innerHTML = appNames.length
+    ? appNames.map(name => `
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0">
+          <input type="checkbox" class="mAppChk" value="${esc(name)}" ${selected.includes(name) ? 'checked' : ''}/> ${esc(name)}
+        </label>
+      `).join('')
+    : '<div style="color:var(--muted);font-size:.8rem">No applications found.</div>';
+}
+
+function setAppsGroupMode(role, selected) {
+  const allAppsChk = document.getElementById('mAllApps');
+  const list = document.getElementById('mAppList');
+  const group = document.getElementById('appsGroup');
+  if (role === 'admin') {
+    group.style.opacity = '.5';
+    allAppsChk.checked = true;
+    allAppsChk.disabled = true;
+    list.style.display = 'none';
+    return;
+  }
+  group.style.opacity = '1';
+  allAppsChk.disabled = false;
+  allAppsChk.checked = selected.length === 0;
+  list.style.display = allAppsChk.checked ? 'none' : 'block';
+}
+
+document.getElementById('mAllApps').onchange = () => {
+  document.getElementById('mAppList').style.display = document.getElementById('mAllApps').checked ? 'none' : 'block';
+};
+
+document.getElementById('mRole').addEventListener('change', () => {
+  const selected = [...document.querySelectorAll('.mAppChk:checked')].map(c => c.value);
+  setAppsGroupMode(document.getElementById('mRole').value, selected);
+});
+
+function getSelectedApps() {
+  if (document.getElementById('mAllApps').checked) return [];
+  return [...document.querySelectorAll('.mAppChk:checked')].map(c => c.value);
+}
+
+function appsSummary(u) {
+  if (u.role === 'admin' || !u.allowedApps || !u.allowedApps.length) return '<span style="color:var(--muted)">All</span>';
+  return `${u.allowedApps.length} app${u.allowedApps.length === 1 ? '' : 's'}`;
+}
+
 /* ===== LOAD USERS ===== */
 let users = [];
 
@@ -65,14 +124,14 @@ async function loadUsers() {
     document.getElementById('userCount').textContent = users.length;
   } catch (e) {
     document.getElementById('usersTbody').innerHTML =
-      `<tr><td colspan="4" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="5" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
   }
 }
 
 function renderUsers() {
   const tbody = document.getElementById('usersTbody');
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="tl">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="tl">No users found.</td></tr>';
     return;
   }
   tbody.innerHTML = users.map(u => {
@@ -86,6 +145,7 @@ function renderUsers() {
           </div>
         </td>
         <td>${roleBadge(u.role)}</td>
+        <td style="font-size:.85rem">${appsSummary(u)}</td>
         <td style="color:var(--muted);font-size:.8rem">${fmtDate(u.created_at)}</td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -108,7 +168,8 @@ function renderUsers() {
 /* ===== ADD / EDIT MODAL ===== */
 let editingId = null;
 
-function openAddModal() {
+async function openAddModal() {
+  await loadAppNames();
   editingId = null;
   document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-user-plus"></i> Add User';
   document.getElementById('mUsername').value = '';
@@ -117,13 +178,16 @@ function openAddModal() {
   document.getElementById('pwdGroup').classList.remove('hidden');
   document.getElementById('modalErr').classList.add('hidden');
   document.getElementById('modalErr').textContent = '';
+  renderAppChecklist([]);
+  setAppsGroupMode('viewer', []);
   document.getElementById('userModal').classList.remove('hidden');
   document.getElementById('mUsername').focus();
 }
 
-function openEditModal(id) {
+async function openEditModal(id) {
   const u = users.find(x => x.id === id);
   if (!u) return;
+  await loadAppNames();
   editingId = id;
   document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-pen"></i> Edit User';
   document.getElementById('mUsername').value = u.username;
@@ -132,6 +196,9 @@ function openEditModal(id) {
   document.getElementById('pwdGroup').classList.add('hidden');
   document.getElementById('modalErr').classList.add('hidden');
   document.getElementById('modalErr').textContent = '';
+  const selected = u.allowedApps || [];
+  renderAppChecklist(selected);
+  setAppsGroupMode(u.role, selected);
   document.getElementById('userModal').classList.remove('hidden');
   document.getElementById('mUsername').focus();
 }
@@ -165,12 +232,14 @@ document.getElementById('modalSave').onclick = async () => {
   const orig = btn.innerHTML;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
+  const allowedApps = getSelectedApps();
+
   try {
     if (editingId) {
-      await Auth.apiFetch(`/users/${editingId}`, { method: 'PUT', body: JSON.stringify({ username, role }) });
+      await Auth.apiFetch(`/users/${editingId}`, { method: 'PUT', body: JSON.stringify({ username, role, allowedApps }) });
       toast('User updated', 'success');
     } else {
-      await Auth.apiFetch('/users', { method: 'POST', body: JSON.stringify({ username, password, role }) });
+      await Auth.apiFetch('/users', { method: 'POST', body: JSON.stringify({ username, password, role, allowedApps }) });
       toast('User created', 'success');
     }
     closeModal();

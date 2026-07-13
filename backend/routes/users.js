@@ -16,14 +16,14 @@ router.get('/', requireRole('admin'), (req, res) => {
 // POST /api/users — admin only
 router.post('/', requireRole('admin'), async (req, res) => {
   try {
-    const { username, password, role } = req.body || {};
+    const { username, password, role, allowedApps } = req.body || {};
     if (!username || !password || !role) {
       return res.status(400).json({ error: 'username, password and role are required' });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
-    const user = await createUser(username, password, role);
+    const user = await createUser(username, password, role, allowedApps);
     res.status(201).json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -33,8 +33,8 @@ router.post('/', requireRole('admin'), async (req, res) => {
 // PUT /api/users/:id — update role or username (admin only)
 router.put('/:id', requireRole('admin'), async (req, res) => {
   try {
-    const { role, username } = req.body || {};
-    const user = await updateUser(req.params.id, { role, username });
+    const { role, username, allowedApps } = req.body || {};
+    const user = await updateUser(req.params.id, { role, username, allowedApps });
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });

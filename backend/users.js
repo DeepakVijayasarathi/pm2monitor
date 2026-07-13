@@ -45,10 +45,24 @@ const findByUsername = u => load().find(x => x.username === u) || null;
 const findById      = id => load().find(x => x.id === id) || null;
 
 function listUsers() {
-  return load().map(({ id, username, role, createdAt }) => ({ id, username, role, created_at: createdAt }));
+  return load().map(({ id, username, role, allowedApps, createdAt }) =>
+    ({ id, username, role, allowedApps: allowedApps || [], created_at: createdAt }));
 }
 
-async function createUser(username, password, role) {
+function sanitizeAllowedApps(allowedApps) {
+  if (!Array.isArray(allowedApps)) return [];
+  return [...new Set(allowedApps.map(a => String(a).trim()).filter(Boolean))];
+}
+
+// Empty allowedApps means unrestricted (all apps). Admins are always unrestricted.
+function canAccessApp(user, appName) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (!user.allowedApps || user.allowedApps.length === 0) return true;
+  return user.allowedApps.includes(appName);
+}
+
+async function createUser(username, password, role, allowedApps) {
   if (!ROLES.includes(role)) throw new Error('Invalid role');
   const users = load();
   if (users.find(u => u.username === username.trim())) throw new Error('Username already exists');
@@ -57,14 +71,15 @@ async function createUser(username, password, role) {
     username: username.trim(),
     passwordHash: await bcrypt.hash(password, 12),
     role,
+    allowedApps: sanitizeAllowedApps(allowedApps),
     createdAt: new Date().toISOString(),
   };
   users.push(user);
   save(users);
-  return { id: user.id, username: user.username, role: user.role, created_at: user.createdAt };
+  return { id: user.id, username: user.username, role: user.role, allowedApps: user.allowedApps, created_at: user.createdAt };
 }
 
-async function updateUser(id, { username, role, password } = {}) {
+async function updateUser(id, { username, role, password, allowedApps } = {}) {
   const users = load();
   const i = users.findIndex(u => u.id === id);
   if (i === -1) throw new Error('User not found');
@@ -76,9 +91,10 @@ async function updateUser(id, { username, role, password } = {}) {
     if (users.find(u => u.username === username.trim() && u.id !== id)) throw new Error('Username already taken');
     users[i].username = username.trim();
   }
+  if (allowedApps !== undefined) users[i].allowedApps = sanitizeAllowedApps(allowedApps);
   if (password) users[i].passwordHash = await bcrypt.hash(password, 12);
   save(users);
-  return { id: users[i].id, username: users[i].username, role: users[i].role, created_at: users[i].createdAt };
+  return { id: users[i].id, username: users[i].username, role: users[i].role, allowedApps: users[i].allowedApps || [], created_at: users[i].createdAt };
 }
 
 function deleteUser(id) {
@@ -91,4 +107,4 @@ function deleteUser(id) {
   save(users.filter(u => u.id !== id));
 }
 
-module.exports = { initUsers, findByUsername, findById, listUsers, createUser, updateUser, deleteUser, ROLES };
+module.exports = { initUsers, findByUsername, findById, listUsers, createUser, updateUser, deleteUser, canAccessApp, ROLES };
