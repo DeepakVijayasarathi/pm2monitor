@@ -4,12 +4,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const helmet = require('helmet');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
 const pm2 = require('pm2');
 const si = require('systeminformation');
 const { authenticateToken, verifyToken } = require('./middleware/auth');
-const { initUsers } = require('./users');
+const { initUsers, findById, canAccessApp } = require('./users');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,15 +17,6 @@ const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: false, originAgentCluster: false }));
 app.use(cors());
 
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 200,
-  standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Too many requests' },
-});
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts' } });
-
-app.use('/api/', limiter);
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -34,7 +24,7 @@ const FRONTEND = path.resolve(__dirname, '..', 'frontend');
 app.use(express.static(FRONTEND));
 
 // Routes
-app.use('/api/auth',   authLimiter, require('./routes/auth'));
+app.use('/api/auth',   require('./routes/auth'));
 app.use('/api/apps',   authenticateToken, require('./routes/apps'));
 app.use('/api/system', authenticateToken, require('./routes/system'));
 app.use('/api/users',  authenticateToken, require('./routes/users'));
@@ -65,16 +55,23 @@ async function broadcast() {
       new Promise(r => pm2.list((e, l) => r(e ? [] : l))),
     ]);
 
-    io.emit('metrics', {
+    const allProcs = procs.map(fmtProc);
+    const base = {
       cpu: { load: Math.round(cpu.currentLoad * 10) / 10, cores: cpu.cpus?.length ?? 0 },
       memory: {
         total: mem.total, used: mem.active, free: mem.available,
         percent: Math.round(mem.active / mem.total * 1000) / 10,
       },
       disk: disk.filter(d => d.size > 0).map(d => ({ fs: d.fs, mount: d.mount, size: d.size, used: d.used, use: d.use })),
-      processes: procs.map(fmtProc),
       timestamp: Date.now(),
-    });
+    };
+
+    // Filter per-socket so a restricted user's live feed matches their allowedApps
+    for (const socket of io.sockets.sockets.values()) {
+      const live = (socket.user && findById(socket.user.id)) || socket.user;
+      const processes = allProcs.filter(p => canAccessApp(live, p.name));
+      socket.emit('metrics', { ...base, processes });
+    }
   } catch (_) {}
 }
 
