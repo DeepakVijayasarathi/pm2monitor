@@ -112,6 +112,15 @@ function renderSites() {
           ${isOperator && s.type === 'nodejs' ? `<button class="btn btn-ghost btn-sm" onclick="restartSite(${s.pm2Id}, this)">
             <i class="fa-solid fa-rotate-right"></i> Restart
           </button>` : ''}
+          ${isOperator ? `<button class="btn btn-ghost btn-sm" onclick="openCronModal('${esc(s.id)}','${esc(s.name)}')">
+            <i class="fa-solid fa-clock"></i> Cron
+          </button>` : ''}
+          ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="openSslModal('${esc(s.name)}')">
+            <i class="fa-solid fa-lock"></i> SSL
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="openDeleteSiteModal('${esc(s.name)}')">
+            <i class="fa-solid fa-trash"></i> Delete
+          </button>` : ''}
         </div>
       </td>
     </tr>
@@ -211,6 +220,231 @@ document.getElementById('uploadSave').onclick = async () => {
 
 /* ===== REFRESH ===== */
 document.getElementById('refreshSites').onclick = loadSites;
+
+/* ===== NEW APPLICATION MODAL ===== */
+const NS_FIELD_MAP = { nodejs: 'nsFieldsNodejs', php: 'nsFieldsPhp', python: 'nsFieldsPython', 'reverse-proxy': 'nsFieldsProxy', static: null };
+
+function nsShowFieldsFor(type) {
+  Object.values(NS_FIELD_MAP).forEach(id => { if (id) document.getElementById(id).style.display = 'none'; });
+  const id = NS_FIELD_MAP[type];
+  if (id) document.getElementById(id).style.display = 'flex';
+}
+
+document.getElementById('nsType').onchange = e => nsShowFieldsFor(e.target.value);
+
+document.getElementById('newSiteBtn').onclick = () => {
+  document.getElementById('nsDomain').value = '';
+  document.getElementById('nsType').value = 'nodejs';
+  document.getElementById('nsNodeVersion').value = '22';
+  document.getElementById('nsNodePort').value = '';
+  document.getElementById('nsPhpVersion').value = '8.3';
+  document.getElementById('nsPhpTemplate').value = 'Generic';
+  document.getElementById('nsPyVersion').value = '3.12';
+  document.getElementById('nsPyPort').value = '';
+  document.getElementById('nsProxyUrl').value = '';
+  document.getElementById('nsSiteUser').value = '';
+  document.getElementById('newSiteErr').classList.add('hidden');
+  nsShowFieldsFor('nodejs');
+  document.getElementById('newSiteForm').classList.remove('hidden');
+  document.getElementById('newSiteResult').classList.add('hidden');
+  document.getElementById('newSiteModal').classList.remove('hidden');
+};
+
+function closeNewSiteModal() { document.getElementById('newSiteModal').classList.add('hidden'); }
+document.getElementById('newSiteModalClose').onclick = closeNewSiteModal;
+document.getElementById('newSiteCancel').onclick = closeNewSiteModal;
+document.getElementById('newSiteDone').onclick = () => { closeNewSiteModal(); loadSites(); };
+
+document.getElementById('newSiteSave').onclick = async () => {
+  const errEl = document.getElementById('newSiteErr');
+  errEl.classList.add('hidden');
+
+  const type = document.getElementById('nsType').value;
+  const body = {
+    domainName: document.getElementById('nsDomain').value.trim(),
+    type,
+    siteUser: document.getElementById('nsSiteUser').value.trim() || undefined,
+  };
+  if (type === 'nodejs') { body.nodejsVersion = document.getElementById('nsNodeVersion').value.trim(); body.appPort = document.getElementById('nsNodePort').value.trim(); }
+  if (type === 'php') { body.phpVersion = document.getElementById('nsPhpVersion').value.trim(); body.vhostTemplate = document.getElementById('nsPhpTemplate').value.trim(); }
+  if (type === 'python') { body.pythonVersion = document.getElementById('nsPyVersion').value.trim(); body.appPort = document.getElementById('nsPyPort').value.trim(); }
+  if (type === 'reverse-proxy') { body.reverseProxyUrl = document.getElementById('nsProxyUrl').value.trim(); }
+
+  const btn = document.getElementById('newSiteSave');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating…';
+
+  try {
+    const res = await Auth.apiFetch('/vhosts', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('nsResultUser').value = res.siteUser;
+    document.getElementById('nsResultPassword').value = res.siteUserPassword;
+    document.getElementById('nsResultOutput').textContent = res.output || '';
+    document.getElementById('newSiteForm').classList.add('hidden');
+    document.getElementById('newSiteResult').classList.remove('hidden');
+    toast(res.message || 'Site created', 'success');
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+};
+
+/* ===== SSL MODAL ===== */
+let sslTargetDomain = null;
+
+function openSslModal(domain) {
+  sslTargetDomain = domain;
+  document.getElementById('sslTargetName').textContent = domain;
+  document.getElementById('sslSan').value = '';
+  document.getElementById('sslErr').classList.add('hidden');
+  document.getElementById('sslOutputWrap').classList.add('hidden');
+  document.getElementById('sslModal').classList.remove('hidden');
+}
+function closeSslModal() { document.getElementById('sslModal').classList.add('hidden'); }
+document.getElementById('sslModalClose').onclick = closeSslModal;
+document.getElementById('sslCancel').onclick = closeSslModal;
+
+document.getElementById('sslSave').onclick = async () => {
+  const errEl = document.getElementById('sslErr');
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('sslSave');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Issuing…';
+
+  try {
+    const san = document.getElementById('sslSan').value.trim();
+    const res = await Auth.apiFetch('/vhosts/ssl', {
+      method: 'POST',
+      body: JSON.stringify({ domainName: sslTargetDomain, subjectAlternativeName: san || undefined }),
+    });
+    document.getElementById('sslOutput').textContent = res.output || '';
+    document.getElementById('sslOutputWrap').classList.remove('hidden');
+    toast(res.message || 'Certificate installed', 'success');
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+};
+
+/* ===== DELETE SITE MODAL ===== */
+let deleteSiteDomain = null;
+
+function openDeleteSiteModal(domain) {
+  deleteSiteDomain = domain;
+  document.getElementById('delSiteName').textContent = domain;
+  document.getElementById('delSiteConfirm').value = '';
+  document.getElementById('deleteSiteConfirmBtn').disabled = true;
+  document.getElementById('deleteSiteErr').classList.add('hidden');
+  document.getElementById('deleteSiteModal').classList.remove('hidden');
+}
+function closeDeleteSiteModal() { document.getElementById('deleteSiteModal').classList.add('hidden'); }
+document.getElementById('deleteSiteModalClose').onclick = closeDeleteSiteModal;
+document.getElementById('deleteSiteCancel').onclick = closeDeleteSiteModal;
+document.getElementById('delSiteConfirm').oninput = e => {
+  document.getElementById('deleteSiteConfirmBtn').disabled = e.target.value.trim() !== deleteSiteDomain;
+};
+document.getElementById('deleteSiteConfirmBtn').onclick = async () => {
+  const errEl = document.getElementById('deleteSiteErr');
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('deleteSiteConfirmBtn');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting…';
+
+  try {
+    const res = await Auth.apiFetch(`/vhosts/${encodeURIComponent(deleteSiteDomain)}`, { method: 'DELETE' });
+    toast(res.message || 'Site deleted', 'success');
+    closeDeleteSiteModal();
+    await loadSites();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+};
+
+/* ===== CRON MODAL ===== */
+let cronTargetId = null;
+
+function cronApiPath(suffix = '') {
+  return `/sites/${encodeURIComponent(cronTargetId)}/cron${suffix}`;
+}
+
+async function openCronModal(id, name) {
+  cronTargetId = id;
+  document.getElementById('cronTargetName').textContent = name;
+  document.getElementById('cronSchedule').value = '';
+  document.getElementById('cronCommand').value = '';
+  document.getElementById('cronErr').classList.add('hidden');
+  document.getElementById('cronAddForm').classList.toggle('hidden', !isOperator);
+  document.getElementById('cronModal').classList.remove('hidden');
+  await loadCronEntries();
+}
+function closeCronModal() { document.getElementById('cronModal').classList.add('hidden'); cronTargetId = null; }
+document.getElementById('cronModalClose').onclick = closeCronModal;
+
+async function loadCronEntries() {
+  const tbody = document.getElementById('cronTbody');
+  tbody.innerHTML = '<tr><td colspan="3" class="tl"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>';
+  try {
+    const data = await Auth.apiFetch(cronApiPath());
+    const entries = data.entries || [];
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="tl">No cron jobs.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = entries.map(en => `
+      <tr>
+        <td class="mono">${esc(en.schedule)}</td>
+        <td class="mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(en.command)}">${esc(en.command)}</td>
+        <td>${isOperator ? `<button class="btn btn-sm btn-danger" onclick="deleteCronEntry(${en.index}, this)"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="tl" style="color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('cronAddBtn').onclick = async () => {
+  const errEl = document.getElementById('cronErr');
+  errEl.classList.add('hidden');
+  const schedule = document.getElementById('cronSchedule').value.trim();
+  const command = document.getElementById('cronCommand').value.trim();
+  const btn = document.getElementById('cronAddBtn');
+  btn.disabled = true;
+  try {
+    await Auth.apiFetch(cronApiPath(), { method: 'POST', body: JSON.stringify({ schedule, command }) });
+    document.getElementById('cronSchedule').value = '';
+    document.getElementById('cronCommand').value = '';
+    toast('Cron job added', 'success');
+    await loadCronEntries();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+async function deleteCronEntry(index, btn) {
+  btn.disabled = true;
+  try {
+    await Auth.apiFetch(cronApiPath(`/${index}`), { method: 'DELETE' });
+    toast('Cron job deleted', 'success');
+    await loadCronEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+    btn.disabled = false;
+  }
+}
 
 /* ===== BOOT ===== */
 loadSites();

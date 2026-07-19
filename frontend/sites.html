@@ -57,6 +57,7 @@
       <div class="sc-header">
         <span class="sc-title"><i class="fa-solid fa-layer-group"></i> Applications <span id="siteCount" class="nav-badge" style="margin-left:8px;position:static"></span></span>
         <div class="sc-actions">
+          <button class="btn btn-primary btn-sm admin-only hidden" id="newSiteBtn"><i class="fa-solid fa-plus"></i> New Application</button>
           <button class="btn btn-ghost btn-sm" id="refreshSites"><i class="fa-solid fa-rotate-right"></i></button>
         </div>
       </div>
@@ -103,6 +104,137 @@
           <i class="fa-solid fa-upload"></i> Deploy
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Application Modal -->
+<div class="modal-ov hidden" id="newSiteModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-plus"></i> New Application</h3>
+      <button class="m-close" id="newSiteModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px" id="newSiteForm">
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fa-solid fa-globe"></i> Domain name</label>
+        <input type="text" id="nsDomain" class="fi" style="width:100%" placeholder="app.example.com"/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fa-solid fa-layer-group"></i> Type</label>
+        <select id="nsType" class="sel" style="width:100%">
+          <option value="nodejs">Node.js</option>
+          <option value="static">Static</option>
+          <option value="php">PHP</option>
+          <option value="python">Python</option>
+          <option value="reverse-proxy">Reverse Proxy</option>
+        </select>
+      </div>
+      <div id="nsFieldsNodejs" class="ns-fields" style="display:flex;gap:10px;margin-bottom:14px">
+        <div class="form-group" style="flex:1"><label>Node.js version</label><input type="text" id="nsNodeVersion" class="fi" style="width:100%" value="22"/></div>
+        <div class="form-group" style="flex:1"><label>App port</label><input type="text" id="nsNodePort" class="fi" style="width:100%" placeholder="3000"/></div>
+      </div>
+      <div id="nsFieldsPhp" class="ns-fields" style="display:none;gap:10px;margin-bottom:14px">
+        <div class="form-group" style="flex:1"><label>PHP version</label><input type="text" id="nsPhpVersion" class="fi" style="width:100%" value="8.3"/></div>
+        <div class="form-group" style="flex:1"><label>Vhost template</label><input type="text" id="nsPhpTemplate" class="fi" style="width:100%" value="Generic"/></div>
+      </div>
+      <div id="nsFieldsPython" class="ns-fields" style="display:none;gap:10px;margin-bottom:14px">
+        <div class="form-group" style="flex:1"><label>Python version</label><input type="text" id="nsPyVersion" class="fi" style="width:100%" value="3.12"/></div>
+        <div class="form-group" style="flex:1"><label>App port</label><input type="text" id="nsPyPort" class="fi" style="width:100%" placeholder="8080"/></div>
+      </div>
+      <div id="nsFieldsProxy" class="ns-fields" style="display:none;margin-bottom:14px">
+        <div class="form-group"><label>Reverse proxy URL</label><input type="text" id="nsProxyUrl" class="fi" style="width:100%" placeholder="http://127.0.0.1:8000"/></div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Site user <span style="color:var(--muted);font-weight:400">(optional — auto-generated from domain if left blank)</span></label>
+        <input type="text" id="nsSiteUser" class="fi" style="width:100%" placeholder="auto"/>
+      </div>
+      <div id="newSiteErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="newSiteCancel">Cancel</button>
+        <button class="btn btn-primary" id="newSiteSave"><i class="fa-solid fa-check"></i> Create</button>
+      </div>
+    </div>
+    <div class="modal-body hidden" style="padding:24px" id="newSiteResult">
+      <div class="dup-alert" style="background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,.2);margin-bottom:14px">
+        <i class="fa-solid fa-circle-check"></i><span>Site created. This password is shown once and not stored — save it now.</span>
+      </div>
+      <div class="form-group" style="margin-bottom:10px"><label>Site user</label><input type="text" id="nsResultUser" class="fi mono" style="width:100%" readonly/></div>
+      <div class="form-group" style="margin-bottom:14px"><label>Password</label><input type="text" id="nsResultPassword" class="fi mono" style="width:100%" readonly/></div>
+      <details style="margin-bottom:14px"><summary style="cursor:pointer;color:var(--muted);font-size:.8rem">clpctl output</summary><pre class="log-pre" id="nsResultOutput" style="max-height:180px;margin-top:8px"></pre></details>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-primary" id="newSiteDone">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SSL Modal -->
+<div class="modal-ov hidden" id="sslModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-lock"></i> Install SSL — <span id="sslTargetName"></span></h3>
+      <button class="m-close" id="sslModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Additional domains <span style="color:var(--muted);font-weight:400">(optional, comma-separated)</span></label>
+        <input type="text" id="sslSan" class="fi" style="width:100%" placeholder="www.example.com, api.example.com"/>
+      </div>
+      <div id="sslErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div id="sslOutputWrap" class="hidden" style="margin-bottom:14px">
+        <pre class="log-pre" id="sslOutput" style="max-height:180px"></pre>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="sslCancel">Close</button>
+        <button class="btn btn-primary" id="sslSave"><i class="fa-solid fa-lock"></i> Issue Certificate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Site Modal -->
+<div class="modal-ov hidden" id="deleteSiteModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i> Delete Site</h3>
+      <button class="m-close" id="deleteSiteModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+        This permanently deletes <strong id="delSiteName"></strong> — its files, nginx vhost, and Linux user. This cannot be undone.
+        Type the domain name to confirm.
+      </p>
+      <input type="text" id="delSiteConfirm" class="fi" style="width:100%" placeholder="Type domain to confirm"/>
+      <div id="deleteSiteErr" class="alert-error hidden" style="margin-top:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" id="deleteSiteCancel">Cancel</button>
+        <button class="btn btn-danger" id="deleteSiteConfirmBtn" disabled><i class="fa-solid fa-trash"></i> Delete Site</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cron Modal -->
+<div class="modal-ov hidden" id="cronModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-clock"></i> Cron Jobs — <span id="cronTargetName"></span></h3>
+      <button class="m-close" id="cronModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px">
+      <div class="t-wrap" style="margin-bottom:16px">
+        <table class="dtable">
+          <thead><tr><th>Schedule</th><th>Command</th><th></th></tr></thead>
+          <tbody id="cronTbody"><tr><td colspan="3" class="tl"><i class="fa-solid fa-spinner fa-spin"></i></td></tr></tbody>
+        </table>
+      </div>
+      <div id="cronAddForm" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <input type="text" id="cronSchedule" class="fi mono" style="width:140px" placeholder="* * * * *"/>
+        <input type="text" id="cronCommand" class="fi mono" style="flex:1;min-width:180px" placeholder="/path/to/script.sh"/>
+        <button class="btn btn-primary btn-sm" id="cronAddBtn"><i class="fa-solid fa-plus"></i> Add</button>
+      </div>
+      <div id="cronErr" class="alert-error hidden" style="margin-top:14px"></div>
     </div>
   </div>
 </div>
