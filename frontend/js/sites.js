@@ -62,6 +62,19 @@ async function loadSites() {
     sites = data.sites || [];
     renderSites();
     document.getElementById('siteCount').textContent = sites.length;
+
+    if (data.homeRoot) document.getElementById('rootPathLabel').textContent = `${data.homeRoot}/*/htdocs/*`;
+
+    const warnEl = document.getElementById('sitesWarn');
+    const warnings = data.warnings || [];
+    if (warnings.length) {
+      document.getElementById('sitesWarnMsg').textContent =
+        `Couldn't read ${warnings.length} path${warnings.length === 1 ? '' : 's'}: ` +
+        warnings.map(w => `${w.path} (${w.error})`).join('; ');
+      warnEl.classList.remove('hidden');
+    } else {
+      warnEl.classList.add('hidden');
+    }
   } catch (e) {
     document.getElementById('sitesTbody').innerHTML =
       `<tr><td colspan="7" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
@@ -90,6 +103,9 @@ function renderSites() {
       <td style="color:var(--muted);font-size:.75rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.path)}">${esc(s.path)}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <a class="btn btn-ghost btn-sm" href="files.html?site=${encodeURIComponent(s.id)}&name=${encodeURIComponent(s.name)}">
+            <i class="fa-solid fa-folder-open"></i> Browse
+          </a>
           ${isOperator ? `<button class="btn btn-ghost btn-sm" onclick="openUploadModal('${esc(s.id)}','${esc(s.name)}')">
             <i class="fa-solid fa-upload"></i> Deploy
           </button>` : ''}

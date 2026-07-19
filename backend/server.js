@@ -29,6 +29,7 @@ app.use('/api/apps',   authenticateToken, require('./routes/apps'));
 app.use('/api/system', authenticateToken, require('./routes/system'));
 app.use('/api/users',  authenticateToken, require('./routes/users'));
 app.use('/api/sites',  authenticateToken, require('./routes/sites'));
+app.use('/api/sites',  authenticateToken, require('./routes/files'));
 
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(FRONTEND, 'index.html')));

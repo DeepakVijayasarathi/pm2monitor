@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>File Manager — PM2 Monitor</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="s-logo">
+      <div class="s-logo-icon"><i class="fa-solid fa-gauge-high"></i></div>
+      <div><div class="s-logo-text">PM2 Monitor</div><div class="s-logo-sub">File Manager</div></div>
+    </div>
+    <button class="sidebar-close" id="sidebarClose"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <a href="/" class="nav-item"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+    <a href="/#applications" class="nav-item"><i class="fa-solid fa-cubes"></i><span>Applications</span></a>
+    <a href="/#system" class="nav-item"><i class="fa-solid fa-server"></i><span>System</span></a>
+    <a href="/#ports" class="nav-item"><i class="fa-solid fa-network-wired"></i><span>Port Monitor</span></a>
+    <div class="nav-section">Deploy</div>
+    <a href="/sites.html" class="nav-item active"><i class="fa-solid fa-layer-group"></i><span>All Applications</span></a>
+    <div class="nav-section admin-only hidden">Admin</div>
+    <a href="/users.html" class="nav-item admin-only hidden"><i class="fa-solid fa-users"></i><span>User Management</span></a>
+  </nav>
+</aside>
+<div class="sidebar-overlay" id="sOverlay"></div>
+
+<div class="main-wrap">
+  <header class="navbar">
+    <div class="nb-left">
+      <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
+      <h2 class="page-title">Files — <span id="siteNameLabel">…</span></h2>
+    </div>
+    <div class="nb-right">
+      <button class="icon-btn" id="themeToggle" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+      <div class="user-wrap">
+        <button class="user-btn" id="userBtn">
+          <div class="u-avatar" id="uAvatar">A</div>
+          <span id="uName">Admin</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:.65rem"></i>
+        </button>
+        <div class="user-drop hidden" id="userDrop">
+          <button id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="section-card">
+      <div class="sc-header" style="flex-wrap:wrap;gap:10px">
+        <span class="sc-title" id="breadcrumbs"><i class="fa-solid fa-folder-tree"></i></span>
+        <div class="sc-actions">
+          <a href="/sites.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> All Applications</a>
+          <button class="btn btn-ghost btn-sm" id="refreshFiles"><i class="fa-solid fa-rotate-right"></i></button>
+          <button class="btn btn-ghost btn-sm hidden" id="newFolderBtn"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
+          <button class="btn btn-primary btn-sm hidden" id="uploadFilesBtn"><i class="fa-solid fa-upload"></i> Upload</button>
+          <input type="file" id="uploadFilesInput" multiple class="hidden"/>
+        </div>
+      </div>
+      <div class="t-wrap">
+        <table class="dtable">
+          <thead>
+            <tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="filesTbody">
+            <tr><td colspan="4" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- New Folder Modal -->
+<div class="modal-ov hidden" id="mkdirModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-folder-plus"></i> New Folder</h3>
+      <button class="m-close" id="mkdirModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Folder name</label>
+        <input type="text" id="mkdirName" class="fi" style="width:100%" placeholder="new-folder"/>
+      </div>
+      <div id="mkdirErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="mkdirCancel">Cancel</button>
+        <button class="btn btn-primary" id="mkdirSave"><i class="fa-solid fa-check"></i> Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Modal -->
+<div class="modal-ov hidden" id="renameModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-pen"></i> Rename</h3>
+      <button class="m-close" id="renameModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>New name</label>
+        <input type="text" id="renameName" class="fi" style="width:100%"/>
+      </div>
+      <div id="renameErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="renameCancel">Cancel</button>
+        <button class="btn btn-primary" id="renameSave"><i class="fa-solid fa-check"></i> Rename</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit File Modal -->
+<div class="modal-ov hidden" id="editModal">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-file-pen"></i> <span id="editFileName"></span></h3>
+      <button class="m-close" id="editModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 24px">
+      <div id="editTruncatedWarn" class="dup-alert hidden" style="margin-bottom:10px">
+        <i class="fa-solid fa-triangle-exclamation"></i><span>File is larger than 2MB — showing a truncated view. Saving will overwrite the full file with this content.</span>
+      </div>
+      <textarea id="editContent" class="fi mono" style="width:100%;height:50vh;resize:vertical;white-space:pre" spellcheck="false"></textarea>
+      <div id="editErr" class="alert-error hidden" style="margin-top:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" id="editCancel">Cancel</button>
+        <button class="btn btn-primary" id="editSave"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="js/auth.js"></script>
+<script src="js/files.js"></script>
+</body>
+</html>
