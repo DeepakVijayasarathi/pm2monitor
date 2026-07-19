@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>All Applications — PM2 Monitor</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="s-logo">
+      <div class="s-logo-icon"><i class="fa-solid fa-gauge-high"></i></div>
+      <div><div class="s-logo-text">PM2 Monitor</div><div class="s-logo-sub">All Applications</div></div>
+    </div>
+    <button class="sidebar-close" id="sidebarClose"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <a href="/" class="nav-item"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+    <a href="/#applications" class="nav-item"><i class="fa-solid fa-cubes"></i><span>Applications</span></a>
+    <a href="/#system" class="nav-item"><i class="fa-solid fa-server"></i><span>System</span></a>
+    <a href="/#ports" class="nav-item"><i class="fa-solid fa-network-wired"></i><span>Port Monitor</span></a>
+    <div class="nav-section">Deploy</div>
+    <a href="/sites.html" class="nav-item active"><i class="fa-solid fa-layer-group"></i><span>All Applications</span></a>
+    <div class="nav-section admin-only hidden">Admin</div>
+    <a href="/users.html" class="nav-item admin-only hidden"><i class="fa-solid fa-users"></i><span>User Management</span></a>
+  </nav>
+</aside>
+<div class="sidebar-overlay" id="sOverlay"></div>
+
+<div class="main-wrap">
+  <header class="navbar">
+    <div class="nb-left">
+      <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
+      <h2 class="page-title">All Applications</h2>
+    </div>
+    <div class="nb-right">
+      <button class="icon-btn" id="themeToggle" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+      <div class="user-wrap">
+        <button class="user-btn" id="userBtn">
+          <div class="u-avatar" id="uAvatar">A</div>
+          <span id="uName">Admin</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:.65rem"></i>
+        </button>
+        <div class="user-drop hidden" id="userDrop">
+          <button id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="section-card">
+      <div class="sc-header">
+        <span class="sc-title"><i class="fa-solid fa-layer-group"></i> Applications <span id="siteCount" class="nav-badge" style="margin-left:8px;position:static"></span></span>
+        <div class="sc-actions">
+          <button class="btn btn-ghost btn-sm" id="refreshSites"><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
+      </div>
+      <div style="padding:10px 18px;font-size:.78rem;color:var(--muted)">
+        Discovered from <code id="rootPathLabel">/home/*/htdocs/*</code> — includes Node.js apps (matched to a running PM2 process) and static/other sites.
+      </div>
+      <div class="t-wrap">
+        <table class="dtable">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Status</th><th>Items</th><th>Modified</th><th>Path</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="sitesTbody">
+            <tr><td colspan="7" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-ov hidden" id="uploadModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-upload"></i> Deploy Files — <span id="uploadTargetName"></span></h3>
+      <button class="m-close" id="uploadModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fa-solid fa-file-zipper"></i> Zip file</label>
+        <input type="file" id="uploadFile" class="fi" style="width:100%" accept=".zip"/>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:6px">Extracted into the app folder, overwriting matching files. Max 300MB.</div>
+      </div>
+      <div class="pbar hidden" id="uploadPbarWrap" style="margin-bottom:14px">
+        <div class="pfill cpu" id="uploadPbar" style="width:0%"></div>
+      </div>
+      <div id="uploadErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="uploadCancel">Cancel</button>
+        <button class="btn btn-primary" id="uploadSave">
+          <i class="fa-solid fa-upload"></i> Deploy
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="js/auth.js"></script>
+<script src="js/sites.js"></script>
+</body>
+</html>
