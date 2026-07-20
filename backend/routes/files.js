@@ -2,8 +2,9 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const AdmZip = require('adm-zip');
 const { requireRole } = require('../middleware/auth');
-const { resolveSite, safeJoin } = require('../lib/sites');
+const { resolveSite, safeJoin, assertSafeZipEntries } = require('../lib/sites');
 
 const router = express.Router();
 
@@ -52,13 +53,16 @@ router.get('/:id/files', async (req, res) => {
         type: s.isDirectory() ? 'dir' : 'file',
         size: s.isDirectory() ? null : s.size,
         modified: s.mtime,
+        mode: (s.mode & 0o777).toString(8).padStart(3, '0'),
+        uid: s.uid,
+        gid: s.gid,
       };
     }));
 
     const list = entries.filter(Boolean).sort((a, b) =>
       a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : a.name.localeCompare(b.name));
 
-    res.json({ path: path.relative(site.path, target).split(path.sep).join('/'), entries: list });
+    res.json({ path: path.relative(site.path, target).split(path.sep).join('/'), entries: list, owner: site.cpUser });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list directory', detail: err.message });
   }
@@ -146,6 +150,179 @@ router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, r
     res.json({ message: 'Renamed' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to rename', detail: err.message });
+  }
+});
+
+// POST /api/sites/:id/files/copy — copy a file or folder (recursive) within the site root
+router.post('/:id/files/copy', requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { from, to } = req.body || {};
+    if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
+    const fromPath = resolvePathOr400(site.path, from, res);
+    if (!fromPath) return;
+    const toPath = resolvePathOr400(site.path, to, res);
+    if (!toPath) return;
+
+    const exists = await fs.promises.stat(fromPath).catch(() => null);
+    if (!exists) return res.status(404).json({ error: 'Source not found' });
+
+    await fs.promises.cp(fromPath, toPath, { recursive: true, errorOnExist: true, force: false });
+    res.json({ message: 'Copied' });
+  } catch (err) {
+    if (err.code === 'ERR_FS_CP_EEXIST' || err.code === 'EEXIST') {
+      return res.status(400).json({ error: 'Destination already exists' });
+    }
+    res.status(500).json({ error: 'Failed to copy', detail: err.message });
+  }
+});
+
+// PUT /api/sites/:id/files/permissions — chmod (admin only)
+router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { path: relPath, mode } = req.body || {};
+    if (!/^[0-7]{3}$/.test(mode || '')) return res.status(400).json({ error: 'mode must be 3 octal digits, e.g. 755' });
+    const target = resolvePathOr400(site.path, relPath, res);
+    if (!target) return;
+
+    const exists = await fs.promises.stat(target).catch(() => null);
+    if (!exists) return res.status(404).json({ error: 'Path not found' });
+
+    await fs.promises.chmod(target, parseInt(mode, 8));
+    res.json({ message: `Permissions set to ${mode}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to change permissions', detail: err.message });
+  }
+});
+
+// POST /api/sites/:id/files/extract — extract a .zip already on the server into a sibling folder
+router.post('/:id/files/extract', requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { path: relPath } = req.body || {};
+    if (!/\.zip$/i.test(relPath || '')) return res.status(400).json({ error: 'path must point to a .zip file' });
+    const target = resolvePathOr400(site.path, relPath, res);
+    if (!target) return;
+
+    const stat = await fs.promises.stat(target).catch(() => null);
+    if (!stat || !stat.isFile()) return res.status(404).json({ error: 'Zip file not found' });
+
+    const destName = path.basename(target).replace(/\.zip$/i, '');
+    const destRoot = resolvePathOr400(path.dirname(target), destName, res);
+    if (!destRoot) return;
+
+    let zip;
+    try {
+      zip = new AdmZip(target);
+    } catch {
+      return res.status(400).json({ error: 'Invalid zip file' });
+    }
+
+    try {
+      assertSafeZipEntries(zip, destRoot);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    zip.extractAllTo(destRoot, true);
+    res.json({ message: `Extracted to ${destName}`, extractedFiles: zip.getEntries().length });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to extract', detail: err.message });
+  }
+});
+
+// POST /api/sites/:id/files/compress — compress selected files/folders into a new .zip in the current dir
+router.post('/:id/files/compress', requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { paths, name } = req.body || {};
+    if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
+    if (!/^[^/\\]+\.zip$/i.test(name || '')) return res.status(400).json({ error: 'name must be a plain filename ending in .zip' });
+
+    const zipDest = resolvePathOr400(site.path, name, res);
+    if (!zipDest) return;
+    if (await fs.promises.stat(zipDest).catch(() => null)) return res.status(400).json({ error: 'A file with that name already exists' });
+
+    const zip = new AdmZip();
+    for (const relPath of paths) {
+      const target = resolvePathOr400(site.path, relPath, res);
+      if (!target) return;
+      const stat = await fs.promises.stat(target).catch(() => null);
+      if (!stat) return res.status(404).json({ error: `Not found: ${relPath}` });
+      if (stat.isDirectory()) zip.addLocalFolder(target, path.basename(target));
+      else zip.addLocalFile(target);
+    }
+    zip.writeZip(zipDest);
+    res.json({ message: `Created ${name}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to compress', detail: err.message });
+  }
+});
+
+// DELETE /api/sites/:id/files/bulk — delete multiple files/folders; folders still require admin
+router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { paths } = req.body || {};
+    if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
+
+    const results = [];
+    for (const relPath of paths) {
+      try {
+        const target = safeJoin(site.path, relPath);
+        if (target === path.resolve(site.path)) throw new Error('Cannot delete the app root');
+        const stat = await fs.promises.stat(target).catch(() => null);
+        if (!stat) throw new Error('Not found');
+        if (stat.isDirectory()) {
+          if (req.user.role !== 'admin') throw new Error('Deleting a folder requires the admin role');
+          await fs.promises.rm(target, { recursive: true, force: true });
+        } else {
+          await fs.promises.unlink(target);
+        }
+        results.push({ path: relPath, ok: true });
+      } catch (err) {
+        results.push({ path: relPath, ok: false, error: err.message });
+      }
+    }
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: 'Bulk delete failed', detail: err.message });
+  }
+});
+
+// POST /api/sites/:id/files/bulk-download — zip up a selection and stream it back
+router.post('/:id/files/bulk-download', async (req, res) => {
+  try {
+    const site = siteRootOr404(req, res);
+    if (!site) return;
+    const { paths } = req.body || {};
+    if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
+
+    const zip = new AdmZip();
+    for (const relPath of paths) {
+      const target = resolvePathOr400(site.path, relPath, res);
+      if (!target) return;
+      const stat = await fs.promises.stat(target).catch(() => null);
+      if (!stat) return res.status(404).json({ error: `Not found: ${relPath}` });
+      if (stat.isDirectory()) zip.addLocalFolder(target, path.basename(target));
+      else zip.addLocalFile(target);
+    }
+
+    const buf = zip.toBuffer();
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${site.name}-selection.zip"`,
+      'Content-Length': buf.length,
+    });
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to build zip', detail: err.message });
   }
 });
 

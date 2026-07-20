@@ -56,7 +56,11 @@
     <div class="section-card">
       <div class="sc-header" style="flex-wrap:wrap;gap:10px">
         <span class="sc-title" id="breadcrumbs"><i class="fa-solid fa-folder-tree"></i></span>
-        <div class="sc-actions">
+        <div class="sc-actions" style="flex-wrap:wrap">
+          <input type="text" id="searchInput" class="fi" style="width:160px" placeholder="Search this folder…"/>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);white-space:nowrap">
+            <input type="checkbox" id="showHidden"/> Hidden files
+          </label>
           <a href="/sites.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> All Applications</a>
           <button class="btn btn-ghost btn-sm" id="refreshFiles"><i class="fa-solid fa-rotate-right"></i></button>
           <button class="btn btn-ghost btn-sm hidden" id="newFolderBtn"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
@@ -64,13 +68,32 @@
           <input type="file" id="uploadFilesInput" multiple class="hidden"/>
         </div>
       </div>
+
+      <!-- Bulk action bar -->
+      <div id="bulkBar" class="dup-alert hidden" style="margin:0 18px 12px;justify-content:space-between">
+        <span><i class="fa-solid fa-check-double"></i> <span id="bulkCount">0</span> selected</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="bulkDownloadBtn"><i class="fa-solid fa-file-zipper"></i> Download Zip</button>
+          <button class="btn btn-ghost btn-sm hidden" id="bulkCompressBtn"><i class="fa-solid fa-file-zipper"></i> Compress</button>
+          <button class="btn btn-ghost btn-sm hidden" id="bulkMoveBtn"><i class="fa-solid fa-arrows-up-down-left-right"></i> Move</button>
+          <button class="btn btn-sm btn-danger hidden" id="bulkDeleteBtn"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+      </div>
+
       <div class="t-wrap">
         <table class="dtable">
           <thead>
-            <tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr>
+            <tr>
+              <th style="width:32px"><input type="checkbox" id="selectAll"/></th>
+              <th style="cursor:pointer" data-sort="name">Name <i class="fa-solid fa-sort" style="opacity:.4"></i></th>
+              <th style="cursor:pointer" data-sort="size">Size <i class="fa-solid fa-sort" style="opacity:.4"></i></th>
+              <th style="cursor:pointer" data-sort="modified">Modified <i class="fa-solid fa-sort" style="opacity:.4"></i></th>
+              <th>Mode</th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody id="filesTbody">
-            <tr><td colspan="4" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+            <tr><td colspan="6" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -120,6 +143,72 @@
   </div>
 </div>
 
+<!-- Move / Copy Modal (shared) -->
+<div class="modal-ov hidden" id="moveCopyModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-arrows-up-down-left-right"></i> <span id="moveCopyTitle">Move</span></h3>
+      <button class="m-close" id="moveCopyModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div id="moveCopySummary" style="font-size:.8rem;color:var(--muted);margin-bottom:14px"></div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Destination folder <span style="color:var(--muted);font-weight:400">(relative to app root)</span></label>
+        <input type="text" id="moveCopyDest" class="fi" style="width:100%" placeholder="e.g. backups or . for current folder"/>
+      </div>
+      <div id="moveCopyErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="moveCopyCancel">Cancel</button>
+        <button class="btn btn-primary" id="moveCopySave"><i class="fa-solid fa-check"></i> Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Permissions Modal -->
+<div class="modal-ov hidden" id="permModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-lock"></i> Permissions — <span id="permFileName"></span></h3>
+      <button class="m-close" id="permModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:14px">Owner: <span id="permOwner" class="mono"></span></div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Mode (octal)</label>
+        <input type="text" id="permMode" class="fi mono" style="width:100%" placeholder="755" maxlength="3"/>
+      </div>
+      <div id="permPreview" class="mono" style="font-size:.8rem;color:var(--muted);margin-bottom:14px">rwxrwxrwx</div>
+      <div id="permErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="permCancel">Cancel</button>
+        <button class="btn btn-primary" id="permSave"><i class="fa-solid fa-check"></i> Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Compress Modal -->
+<div class="modal-ov hidden" id="compressModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-file-zipper"></i> Compress to Zip</h3>
+      <button class="m-close" id="compressModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Archive name</label>
+        <input type="text" id="compressName" class="fi" style="width:100%" placeholder="archive.zip"/>
+      </div>
+      <div id="compressErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="compressCancel">Cancel</button>
+        <button class="btn btn-primary" id="compressSave"><i class="fa-solid fa-check"></i> Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Edit File Modal -->
 <div class="modal-ov hidden" id="editModal">
   <div class="modal" style="max-width:800px">
@@ -137,6 +226,19 @@
         <button class="btn btn-ghost" id="editCancel">Cancel</button>
         <button class="btn btn-primary" id="editSave"><i class="fa-solid fa-floppy-disk"></i> Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal-ov hidden" id="previewModal">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-image"></i> <span id="previewFileName"></span></h3>
+      <button class="m-close" id="previewModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 24px;text-align:center">
+      <img id="previewImg" style="max-width:100%;max-height:70vh;border-radius:8px" />
     </div>
   </div>
 </div>

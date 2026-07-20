@@ -130,4 +130,15 @@ function safeJoin(root, relPath) {
   return target;
 }
 
-module.exports = { HOME_ROOT, siteId, discoverSites, listMergedSites, resolveSite, safeJoin };
+// Zip-slip guard: every entry must resolve inside destRoot. Throws on the first unsafe entry.
+function assertSafeZipEntries(zip, destRoot) {
+  const resolvedRoot = path.resolve(destRoot);
+  for (const entry of zip.getEntries()) {
+    const resolved = path.resolve(resolvedRoot, entry.entryName);
+    if (resolved !== resolvedRoot && !resolved.startsWith(resolvedRoot + path.sep)) {
+      throw new Error(`Unsafe path in zip: ${entry.entryName}`);
+    }
+  }
+}
+
+module.exports = { HOME_ROOT, siteId, discoverSites, listMergedSites, resolveSite, safeJoin, assertSafeZipEntries };

@@ -30,7 +30,10 @@ document.getElementById('userBtn').onclick = e => {
   e.stopPropagation();
   document.getElementById('userDrop').classList.toggle('hidden');
 };
-document.addEventListener('click', () => document.getElementById('userDrop').classList.add('hidden'));
+document.addEventListener('click', () => {
+  document.getElementById('userDrop').classList.add('hidden');
+  closeAllKebabs();
+});
 document.getElementById('logoutBtn').onclick = () => Auth.logout();
 
 /* ===== SIDEBAR ===== */
@@ -65,9 +68,21 @@ function isEditable(name) {
   return EDITABLE_EXT.has(ext);
 }
 
+const IMAGE_EXT = new Set(['jpg','jpeg','png','gif','svg','webp','bmp','ico']);
+function isImage(name) {
+  const ext = name.toLowerCase().includes('.') ? name.toLowerCase().split('.').pop() : '';
+  return IMAGE_EXT.has(ext);
+}
+
 /* ===== STATE ===== */
 let currentPath = '';
 let entries = [];
+let siteOwner = '';
+let selected = new Set();
+let sortBy = 'name';
+let sortDir = 'asc';
+let showHidden = false;
+let searchQuery = '';
 
 function apiPath(suffix) {
   return `/sites/${encodeURIComponent(SITE_ID)}/files${suffix}`;
@@ -95,11 +110,14 @@ async function loadDir(p) {
     const data = await Auth.apiFetch(apiPath(`?path=${encodeURIComponent(p)}`));
     currentPath = data.path || '';
     entries = data.entries || [];
+    siteOwner = data.owner || '';
+    selected.clear();
+    updateBulkBar();
     renderBreadcrumbs();
     renderTable();
   } catch (e) {
     document.getElementById('filesTbody').innerHTML =
-      `<tr><td colspan="4" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="6" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -109,50 +127,143 @@ function joinPath(dir, name) {
 
 function iconFor(entry) {
   if (entry.type === 'dir') return 'fa-solid fa-folder';
+  if (isImage(entry.name)) return 'fa-solid fa-file-image';
   if (isEditable(entry.name)) return 'fa-solid fa-file-lines';
   return 'fa-solid fa-file';
 }
 
+/* ===== FILTER + SORT ===== */
+function getVisibleEntries() {
+  let list = entries;
+  if (!showHidden) list = list.filter(e => !e.name.startsWith('.'));
+  const q = searchQuery.trim().toLowerCase();
+  if (q) list = list.filter(e => e.name.toLowerCase().includes(q));
+
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return [...list].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    if (sortBy === 'size') return ((a.size || 0) - (b.size || 0)) * dir;
+    if (sortBy === 'modified') return (new Date(a.modified) - new Date(b.modified)) * dir;
+    return a.name.localeCompare(b.name) * dir;
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
+document.getElementById('showHidden').addEventListener('change', e => { showHidden = e.target.checked; renderTable(); });
+document.querySelectorAll('[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (sortBy === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortBy = key; sortDir = 'asc'; }
+    renderTable();
+  });
+});
+
+/* ===== SELECTION ===== */
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const count = selected.size;
+  document.getElementById('bulkCount').textContent = count;
+  bar.classList.toggle('hidden', count === 0);
+  document.getElementById('bulkCompressBtn').classList.toggle('hidden', !isOperator);
+  document.getElementById('bulkMoveBtn').classList.toggle('hidden', !isOperator);
+  document.getElementById('bulkDeleteBtn').classList.toggle('hidden', !isOperator);
+  document.getElementById('selectAll').checked = count > 0 && count === getVisibleEntries().length;
+}
+
+document.getElementById('selectAll').addEventListener('change', e => {
+  selected.clear();
+  if (e.target.checked) getVisibleEntries().forEach(en => selected.add(joinPath(currentPath, en.name)));
+  renderTable();
+});
+
+/* ===== TABLE ===== */
 function renderTable() {
   const tbody = document.getElementById('filesTbody');
   document.getElementById('newFolderBtn').classList.toggle('hidden', !isOperator);
   document.getElementById('uploadFilesBtn').classList.toggle('hidden', !isOperator);
 
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="tl">Empty folder.</td></tr>';
+  const visible = getVisibleEntries();
+  if (!visible.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="tl">${entries.length ? 'No matches.' : 'Empty folder.'}</td></tr>`;
+    updateBulkBar();
     return;
   }
 
-  tbody.innerHTML = entries.map(e => {
+  tbody.innerHTML = visible.map((e, idx) => {
     const full = joinPath(currentPath, e.name);
     const nameCell = e.type === 'dir'
       ? `<a href="#" onclick="event.preventDefault();loadDir('${esc(full)}')"><i class="${iconFor(e)}"></i> ${esc(e.name)}</a>`
       : `<span><i class="${iconFor(e)}"></i> ${esc(e.name)}</span>`;
 
-    const actions = [];
-    if (e.type === 'file' && isEditable(e.name)) {
-      actions.push(`<button class="btn btn-ghost btn-sm" onclick="openEdit('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-pen"></i></button>`);
+    const inline = [];
+    if (e.type === 'file' && isImage(e.name)) {
+      inline.push(`<button class="btn btn-ghost btn-sm" title="Preview" onclick="previewImage('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-eye"></i></button>`);
     }
+    if (e.type === 'file' && isEditable(e.name)) {
+      inline.push(`<button class="btn btn-ghost btn-sm" title="Edit" onclick="openEdit('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-pen"></i></button>`);
+    }
+
+    const menu = [];
     if (e.type === 'file') {
-      actions.push(`<button class="btn btn-ghost btn-sm" onclick="downloadFile('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-download"></i></button>`);
+      menu.push(`<button onclick="downloadFile('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-download"></i> Download</button>`);
     }
     if (isOperator) {
-      actions.push(`<button class="btn btn-ghost btn-sm" onclick="openRename('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-i-cursor"></i></button>`);
-      // Recursive folder delete is admin-only on the backend — don't offer a button that will just 403
-      if (e.type === 'file' || isAdmin) {
-        actions.push(`<button class="btn btn-sm btn-danger" onclick="deleteEntry('${esc(full)}', this)"><i class="fa-solid fa-trash"></i></button>`);
+      menu.push(`<button onclick="openRename('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-i-cursor"></i> Rename</button>`);
+      menu.push(`<button onclick="openMoveCopy('move',['${esc(full)}'])"><i class="fa-solid fa-arrows-up-down-left-right"></i> Move</button>`);
+      menu.push(`<button onclick="openMoveCopy('copy',['${esc(full)}'])"><i class="fa-solid fa-copy"></i> Copy</button>`);
+      if (e.type === 'file' && /\.zip$/i.test(e.name)) {
+        menu.push(`<button onclick="extractZip('${esc(full)}')"><i class="fa-solid fa-box-open"></i> Extract</button>`);
       }
+    }
+    if (isAdmin) {
+      menu.push(`<button onclick="openPermissions('${esc(full)}','${esc(e.name)}','${e.mode}')"><i class="fa-solid fa-lock"></i> Permissions</button>`);
+    }
+    if (isOperator && (e.type === 'file' || isAdmin)) {
+      menu.push(`<button onclick="deleteEntry('${esc(full)}')" style="color:var(--red)"><i class="fa-solid fa-trash"></i> Delete</button>`);
     }
 
     return `
       <tr>
+        <td><input type="checkbox" class="row-check" data-path="${esc(full)}" ${selected.has(full) ? 'checked' : ''}/></td>
         <td>${nameCell}</td>
         <td style="color:var(--muted);font-size:.8rem">${fmtBytes(e.size)}</td>
         <td style="color:var(--muted);font-size:.8rem">${fmtDate(e.modified)}</td>
-        <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions.join('')}</div></td>
+        <td class="mono" style="color:var(--muted);font-size:.75rem">${e.mode || '—'}</td>
+        <td>
+          <div style="display:flex;gap:2px;align-items:center;position:relative">
+            ${inline.join('')}
+            ${menu.length ? `
+            <div style="position:relative;display:inline-block">
+              <button class="btn btn-ghost btn-sm kebab-btn" data-idx="${idx}" onclick="event.stopPropagation();toggleKebab(${idx})"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <div class="user-drop hidden" id="kebab-${idx}" style="right:0">${menu.join('')}</div>
+            </div>` : ''}
+          </div>
+        </td>
       </tr>
     `;
   }).join('');
+
+  tbody.querySelectorAll('.row-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) selected.add(cb.dataset.path);
+      else selected.delete(cb.dataset.path);
+      updateBulkBar();
+    });
+  });
+
+  updateBulkBar();
+}
+
+/* ===== KEBAB MENU ===== */
+function closeAllKebabs() {
+  document.querySelectorAll('[id^="kebab-"]').forEach(el => el.classList.add('hidden'));
+}
+function toggleKebab(idx) {
+  const el = document.getElementById(`kebab-${idx}`);
+  const wasOpen = !el.classList.contains('hidden');
+  closeAllKebabs();
+  if (!wasOpen) el.classList.remove('hidden');
 }
 
 /* ===== NEW FOLDER ===== */
@@ -181,6 +292,7 @@ document.getElementById('mkdirSave').onclick = async () => {
 /* ===== RENAME ===== */
 let renameTarget = null;
 function openRename(full, name) {
+  closeAllKebabs();
   renameTarget = full;
   document.getElementById('renameName').value = name;
   document.getElementById('renameErr').classList.add('hidden');
@@ -201,6 +313,135 @@ document.getElementById('renameSave').onclick = async () => {
   } catch (e) {
     document.getElementById('renameErr').textContent = e.message;
     document.getElementById('renameErr').classList.remove('hidden');
+  }
+};
+
+/* ===== MOVE / COPY (single item via kebab, or bulk via selection) ===== */
+let moveCopyMode = 'move';
+let moveCopyItems = [];
+
+function openMoveCopy(mode, items) {
+  closeAllKebabs();
+  moveCopyMode = mode;
+  moveCopyItems = items;
+  document.getElementById('moveCopyTitle').textContent = mode === 'move' ? 'Move' : 'Copy';
+  document.getElementById('moveCopySummary').textContent =
+    items.length === 1 ? items[0] : `${items.length} items selected`;
+  document.getElementById('moveCopyDest').value = currentPath || '.';
+  document.getElementById('moveCopyErr').classList.add('hidden');
+  document.getElementById('moveCopyModal').classList.remove('hidden');
+  document.getElementById('moveCopyDest').focus();
+}
+document.getElementById('moveCopyModalClose').onclick = () => document.getElementById('moveCopyModal').classList.add('hidden');
+document.getElementById('moveCopyCancel').onclick = () => document.getElementById('moveCopyModal').classList.add('hidden');
+document.getElementById('bulkMoveBtn').onclick = () => openMoveCopy('move', [...selected]);
+
+document.getElementById('moveCopySave').onclick = async () => {
+  const errEl = document.getElementById('moveCopyErr');
+  errEl.classList.add('hidden');
+  const destDir = document.getElementById('moveCopyDest').value.trim() || '.';
+  const endpoint = moveCopyMode === 'move' ? '/rename' : '/copy';
+
+  const btn = document.getElementById('moveCopySave');
+  btn.disabled = true;
+  let failures = 0;
+  for (const from of moveCopyItems) {
+    const name = from.split('/').pop();
+    const to = destDir === '.' ? name : `${destDir}/${name}`;
+    try {
+      await Auth.apiFetch(apiPath(endpoint), { method: 'POST', body: JSON.stringify({ from, to }) });
+    } catch (e) {
+      failures++;
+      errEl.textContent = e.message;
+      errEl.classList.remove('hidden');
+    }
+  }
+  btn.disabled = false;
+  if (failures === 0) {
+    document.getElementById('moveCopyModal').classList.add('hidden');
+    toast(moveCopyMode === 'move' ? 'Moved' : 'Copied', 'success');
+    selected.clear();
+    await loadDir(currentPath);
+  } else if (failures < moveCopyItems.length) {
+    toast(`${moveCopyItems.length - failures} of ${moveCopyItems.length} succeeded`, 'warning');
+    selected.clear();
+    await loadDir(currentPath);
+  }
+};
+
+/* ===== PERMISSIONS ===== */
+let permTarget = null;
+function modeToRwx(mode) {
+  const bits = String(mode || '000').padStart(3, '0').split('').map(Number);
+  return bits.map(b => (b & 4 ? 'r' : '-') + (b & 2 ? 'w' : '-') + (b & 1 ? 'x' : '-')).join('');
+}
+function openPermissions(full, name, mode) {
+  closeAllKebabs();
+  permTarget = full;
+  document.getElementById('permFileName').textContent = name;
+  document.getElementById('permOwner').textContent = siteOwner ? `${siteOwner}` : '—';
+  document.getElementById('permMode').value = mode || '644';
+  document.getElementById('permPreview').textContent = modeToRwx(mode);
+  document.getElementById('permErr').classList.add('hidden');
+  document.getElementById('permModal').classList.remove('hidden');
+}
+document.getElementById('permModalClose').onclick = () => document.getElementById('permModal').classList.add('hidden');
+document.getElementById('permCancel').onclick = () => document.getElementById('permModal').classList.add('hidden');
+document.getElementById('permMode').addEventListener('input', e => {
+  document.getElementById('permPreview').textContent = modeToRwx(e.target.value);
+});
+document.getElementById('permSave').onclick = async () => {
+  const errEl = document.getElementById('permErr');
+  errEl.classList.add('hidden');
+  const mode = document.getElementById('permMode').value.trim();
+  if (!/^[0-7]{3}$/.test(mode)) { errEl.textContent = 'Mode must be 3 octal digits, e.g. 755'; errEl.classList.remove('hidden'); return; }
+  try {
+    await Auth.apiFetch(apiPath('/permissions'), { method: 'PUT', body: JSON.stringify({ path: permTarget, mode }) });
+    document.getElementById('permModal').classList.add('hidden');
+    toast('Permissions updated', 'success');
+    await loadDir(currentPath);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+};
+
+/* ===== EXTRACT ===== */
+async function extractZip(full) {
+  closeAllKebabs();
+  try {
+    const res = await Auth.apiFetch(apiPath('/extract'), { method: 'POST', body: JSON.stringify({ path: full }) });
+    toast(res.message || 'Extracted', 'success');
+    await loadDir(currentPath);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ===== COMPRESS ===== */
+document.getElementById('bulkCompressBtn').onclick = () => {
+  document.getElementById('compressName').value = 'archive.zip';
+  document.getElementById('compressErr').classList.add('hidden');
+  document.getElementById('compressModal').classList.remove('hidden');
+  document.getElementById('compressName').focus();
+};
+document.getElementById('compressModalClose').onclick = () => document.getElementById('compressModal').classList.add('hidden');
+document.getElementById('compressCancel').onclick = () => document.getElementById('compressModal').classList.add('hidden');
+document.getElementById('compressSave').onclick = async () => {
+  const errEl = document.getElementById('compressErr');
+  errEl.classList.add('hidden');
+  let name = document.getElementById('compressName').value.trim();
+  if (!name) { errEl.textContent = 'Name is required'; errEl.classList.remove('hidden'); return; }
+  if (!/\.zip$/i.test(name)) name += '.zip';
+  try {
+    const res = await Auth.apiFetch(apiPath('/compress'), { method: 'POST', body: JSON.stringify({ paths: [...selected], name }) });
+    document.getElementById('compressModal').classList.add('hidden');
+    toast(res.message || 'Created', 'success');
+    selected.clear();
+    await loadDir(currentPath);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
   }
 };
 
@@ -244,61 +485,89 @@ document.getElementById('editSave').onclick = async () => {
 };
 
 /* ===== DOWNLOAD ===== */
+async function fetchBlob(url) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${Auth.getToken()}` } });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.blob();
+}
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 async function downloadFile(full, name) {
+  closeAllKebabs();
   try {
-    const res = await fetch(`/api${apiPath(`/download?path=${encodeURIComponent(full)}`)}`, {
-      headers: { Authorization: `Bearer ${Auth.getToken()}` },
-    });
-    if (!res.ok) throw new Error(`Download failed (${res.status})`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const blob = await fetchBlob(`/api${apiPath(`/download?path=${encodeURIComponent(full)}`)}`);
+    saveBlob(blob, name);
   } catch (e) {
     toast(e.message, 'error');
   }
 }
 
-/* ===== DELETE ===== */
-const deleteTimers = {};
-async function deleteEntry(full, btn) {
-  if (deleteTimers[full]) {
-    clearTimeout(deleteTimers[full]);
-    delete deleteTimers[full];
-    const orig = btn.dataset.orig;
-    btn.innerHTML = orig;
-    btn.style.background = '';
-    btn.style.borderColor = '';
-    btn.onclick = () => deleteEntry(full, btn);
-    try {
-      btn.disabled = true;
-      await Auth.apiFetch(apiPath(`?path=${encodeURIComponent(full)}`), { method: 'DELETE' });
-      toast('Deleted', 'success');
-      await loadDir(currentPath);
-    } catch (e) {
-      toast(e.message, 'error');
-      btn.disabled = false;
-    }
-    return;
+/* ===== IMAGE PREVIEW ===== */
+async function previewImage(full, name) {
+  try {
+    const blob = await fetchBlob(`/api${apiPath(`/download?path=${encodeURIComponent(full)}`)}`);
+    document.getElementById('previewFileName').textContent = name;
+    document.getElementById('previewImg').src = URL.createObjectURL(blob);
+    document.getElementById('previewModal').classList.remove('hidden');
+  } catch (e) {
+    toast(e.message, 'error');
   }
-  btn.dataset.orig = btn.innerHTML;
-  btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
-  btn.style.background = 'var(--red)';
-  btn.style.borderColor = 'var(--red)';
-  deleteTimers[full] = setTimeout(() => {
-    delete deleteTimers[full];
-    if (btn.isConnected) {
-      btn.innerHTML = btn.dataset.orig;
-      btn.style.background = '';
-      btn.style.borderColor = '';
-    }
-  }, 4000);
 }
+document.getElementById('previewModalClose').onclick = () => {
+  document.getElementById('previewModal').classList.add('hidden');
+  document.getElementById('previewImg').src = '';
+};
+
+/* ===== BULK DOWNLOAD ===== */
+document.getElementById('bulkDownloadBtn').onclick = async () => {
+  try {
+    const res = await fetch(`/api${apiPath('/bulk-download')}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${Auth.getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths: [...selected] }),
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
+    saveBlob(await res.blob(), `${SITE_NAME || 'files'}-selection.zip`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+};
+
+/* ===== DELETE (single + bulk) ===== */
+async function deleteEntry(full) {
+  closeAllKebabs();
+  const name = full.split('/').pop();
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  try {
+    await Auth.apiFetch(apiPath(`?path=${encodeURIComponent(full)}`), { method: 'DELETE' });
+    toast('Deleted', 'success');
+    await loadDir(currentPath);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+document.getElementById('bulkDeleteBtn').onclick = async () => {
+  if (!confirm(`Delete ${selected.size} selected item(s)? This cannot be undone.`)) return;
+  try {
+    const data = await Auth.apiFetch(apiPath('/bulk'), { method: 'DELETE', body: JSON.stringify({ paths: [...selected] }) });
+    const failed = (data.results || []).filter(r => !r.ok);
+    if (failed.length) toast(`${failed.length} item(s) failed: ${failed.map(f => f.error).join('; ')}`, 'error');
+    else toast('Deleted', 'success');
+    selected.clear();
+    await loadDir(currentPath);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+};
 
 /* ===== UPLOAD ===== */
 document.getElementById('uploadFilesBtn').onclick = () => document.getElementById('uploadFilesInput').click();

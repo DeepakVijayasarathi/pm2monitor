@@ -3,7 +3,7 @@ const path = require('path');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
 const { requireRole } = require('../middleware/auth');
-const { listMergedSites, resolveSite } = require('../lib/sites');
+const { listMergedSites, resolveSite, assertSafeZipEntries } = require('../lib/sites');
 
 const router = express.Router();
 
@@ -45,12 +45,10 @@ router.post('/:id/upload', requireRole('operator', 'admin'), upload.single('file
       return res.status(400).json({ error: 'Invalid zip file' });
     }
 
-    // Zip-slip guard: every entry must resolve inside destRoot before extracting anything
-    for (const entry of zip.getEntries()) {
-      const resolved = path.resolve(destRoot, entry.entryName);
-      if (resolved !== destRoot && !resolved.startsWith(destRoot + path.sep)) {
-        return res.status(400).json({ error: `Unsafe path in zip: ${entry.entryName}` });
-      }
+    try {
+      assertSafeZipEntries(zip, destRoot);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
     }
 
     zip.extractAllTo(destRoot, true);
