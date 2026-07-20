@@ -52,7 +52,8 @@ const toast = (msg, type = 'info') => {
 
 const fmtBytes = b => { if (!b) return '0 B'; const u=['B','KB','MB','GB']; const i=Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(1)+' '+u[i]; };
 const fmtUp = ms => { if (!ms) return '—'; const s=Math.floor((Date.now()-ms)/1000); if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m '+s%60+'s'; if(s<86400) return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'; return Math.floor(s/86400)+'d'; };
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const badge = st => { const m={online:'b-online',stopped:'b-stopped',errored:'b-errored',launching:'b-launching'}; return `<span class="badge ${m[st]||'b-default'}">${st||'—'}</span>`; };
 
 /* ===== CHARTS ===== */
@@ -183,7 +184,7 @@ function renderLogs() {
     const html = allLines.map(line => {
       if (line.toLowerCase().includes(q)) {
         matches++;
-        const safe = esc(line).replace(new RegExp(esc(q), 'gi'), m => `<mark class="log-mark">${m}</mark>`);
+        const safe = esc(line).replace(new RegExp(escapeRegExp(q), 'gi'), m => `<mark class="log-mark">${m}</mark>`);
         return `<span class="log-hit">${safe}</span>`;
       }
       return `<span style="opacity:0.45">${esc(line)}</span>`;

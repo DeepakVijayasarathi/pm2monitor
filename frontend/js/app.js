@@ -34,7 +34,7 @@ const fmtUp = ms => {
   if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
   return Math.floor(s/86400) + 'd';
 };
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const badge = st => {
   const m = {online:'b-online',stopped:'b-stopped',errored:'b-errored',launching:'b-launching'};
   return `<span class="badge ${m[st]||'b-default'}">${st||'—'}</span>`;

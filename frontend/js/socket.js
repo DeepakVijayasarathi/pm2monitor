@@ -2,7 +2,6 @@ const SocketManager = (() => {
   let socket = null;
   let reconnectAttempts = 0;
   const MAX_RECONNECT = 10;
-  const handlers = {};
 
   function connect(token) {
     if (socket) socket.disconnect();
@@ -26,15 +25,11 @@ const SocketManager = (() => {
       updateStatus(false, reconnectAttempts >= MAX_RECONNECT ? 'Disconnected' : `Reconnecting…`);
     });
 
-    socket.on('metrics', (data) => {
-      if (handlers.metrics) handlers.metrics(data);
-    });
-
     return socket;
   }
 
+  // Registers directly on the live socket — connect() must run first (both callers already do this)
   function on(event, handler) {
-    handlers[event] = handler;
     if (socket) socket.on(event, handler);
   }
 
