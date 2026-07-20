@@ -89,7 +89,7 @@ router.get('/:id/files/content', async (req, res) => {
 });
 
 // PUT /api/sites/:id/files/content — save file content
-router.put('/:id/files/content', requireRole('operator', 'admin'), express.json({ limit: '3mb' }), async (req, res) => {
+router.put('/:id/files/content', requireRole('operator', 'admin'), async (req, res) => {
   try {
     const site = siteRootOr404(req, res);
     if (!site) return;
@@ -111,7 +111,7 @@ router.put('/:id/files/content', requireRole('operator', 'admin'), express.json(
 });
 
 // POST /api/sites/:id/files/mkdir — create a folder
-router.post('/:id/files/mkdir', requireRole('operator', 'admin'), express.json(), async (req, res) => {
+router.post('/:id/files/mkdir', requireRole('operator', 'admin'), async (req, res) => {
   try {
     const site = siteRootOr404(req, res);
     if (!site) return;
@@ -128,7 +128,7 @@ router.post('/:id/files/mkdir', requireRole('operator', 'admin'), express.json()
 });
 
 // POST /api/sites/:id/files/rename — rename/move within the site root
-router.post('/:id/files/rename', requireRole('operator', 'admin'), express.json(), async (req, res) => {
+router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, res) => {
   try {
     const site = siteRootOr404(req, res);
     if (!site) return;

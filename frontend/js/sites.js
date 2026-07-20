@@ -112,9 +112,9 @@ function renderSites() {
           ${isOperator && s.type === 'nodejs' ? `<button class="btn btn-ghost btn-sm" onclick="restartSite(${s.pm2Id}, this)">
             <i class="fa-solid fa-rotate-right"></i> Restart
           </button>` : ''}
-          ${isOperator ? `<button class="btn btn-ghost btn-sm" onclick="openCronModal('${esc(s.id)}','${esc(s.name)}')">
+          <button class="btn btn-ghost btn-sm" onclick="openCronModal('${esc(s.id)}','${esc(s.name)}')">
             <i class="fa-solid fa-clock"></i> Cron
-          </button>` : ''}
+          </button>
           ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="openSslModal('${esc(s.name)}')">
             <i class="fa-solid fa-lock"></i> SSL
           </button>

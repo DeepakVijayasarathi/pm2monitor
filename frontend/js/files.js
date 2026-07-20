@@ -138,7 +138,10 @@ function renderTable() {
     }
     if (isOperator) {
       actions.push(`<button class="btn btn-ghost btn-sm" onclick="openRename('${esc(full)}','${esc(e.name)}')"><i class="fa-solid fa-i-cursor"></i></button>`);
-      actions.push(`<button class="btn btn-sm btn-danger" onclick="deleteEntry('${esc(full)}', this)"><i class="fa-solid fa-trash"></i></button>`);
+      // Recursive folder delete is admin-only on the backend — don't offer a button that will just 403
+      if (e.type === 'file' || isAdmin) {
+        actions.push(`<button class="btn btn-sm btn-danger" onclick="deleteEntry('${esc(full)}', this)"><i class="fa-solid fa-trash"></i></button>`);
+      }
     }
 
     return `
