@@ -511,11 +511,17 @@ async function downloadFile(full, name) {
 }
 
 /* ===== IMAGE PREVIEW ===== */
+let currentPreviewUrl = null;
+function revokePreviewUrl() {
+  if (currentPreviewUrl) { URL.revokeObjectURL(currentPreviewUrl); currentPreviewUrl = null; }
+}
 async function previewImage(full, name) {
   try {
     const blob = await fetchBlob(`/api${apiPath(`/download?path=${encodeURIComponent(full)}`)}`);
+    revokePreviewUrl();
+    currentPreviewUrl = URL.createObjectURL(blob);
     document.getElementById('previewFileName').textContent = name;
-    document.getElementById('previewImg').src = URL.createObjectURL(blob);
+    document.getElementById('previewImg').src = currentPreviewUrl;
     document.getElementById('previewModal').classList.remove('hidden');
   } catch (e) {
     toast(e.message, 'error');
@@ -524,6 +530,7 @@ async function previewImage(full, name) {
 document.getElementById('previewModalClose').onclick = () => {
   document.getElementById('previewModal').classList.add('hidden');
   document.getElementById('previewImg').src = '';
+  revokePreviewUrl();
 };
 
 /* ===== BULK DOWNLOAD ===== */
