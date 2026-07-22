@@ -53,4 +53,21 @@ function deriveSiteUser(domain) {
   return slug.slice(0, 32) || 'site' + Date.now().toString(36);
 }
 
-module.exports = { runClpctl, randomPassword, assertSafeArgValue, isValidDomain, deriveSiteUser };
+// System/service accounts a manually-typed siteUser override must never collide with —
+// clpctl's own useradd would likely just fail on an existing one of these, but some
+// (e.g. a not-yet-installed 'postgres') might not exist yet and could be silently claimed.
+const RESERVED_USERNAMES = new Set([
+  'root', 'daemon', 'bin', 'sys', 'sync', 'games', 'man', 'lp', 'mail', 'news', 'uucp',
+  'proxy', 'www-data', 'backup', 'list', 'irc', 'gnats', 'nobody', 'systemd-network',
+  'systemd-resolve', 'systemd-timesync', 'messagebus', 'sshd', 'mysql', 'mysqld', 'postgres',
+  'redis', 'mongodb', 'clp', 'cloudpanel', 'admin', 'administrator', 'ftp', 'ntp', 'syslog',
+  '_apt', 'tss', 'uuidd', 'tcpdump', 'landscape', 'pollinate', 'sssd', 'polkitd', 'docker',
+]);
+
+function assertNotReservedUsername(username) {
+  if (RESERVED_USERNAMES.has(String(username).toLowerCase())) {
+    throw new Error(`siteUser "${username}" is a reserved system account name`);
+  }
+}
+
+module.exports = { runClpctl, randomPassword, assertSafeArgValue, isValidDomain, deriveSiteUser, assertNotReservedUsername };

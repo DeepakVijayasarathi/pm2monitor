@@ -5,6 +5,7 @@ const multer = require('multer');
 const AdmZip = require('adm-zip');
 const { requireRole } = require('../middleware/auth');
 const { resolveSite, safeJoin, assertSafeZipEntries } = require('../lib/sites');
+const audit = require('../lib/audit');
 
 const router = express.Router();
 
@@ -192,6 +193,7 @@ router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
     if (!exists) return res.status(404).json({ error: 'Path not found' });
 
     await fs.promises.chmod(target, parseInt(mode, 8));
+    audit.log(req.user, 'file.chmod', `${site.name}:${relPath}`, { mode });
     res.json({ message: `Permissions set to ${mode}` });
   } catch (err) {
     res.status(500).json({ error: 'Failed to change permissions', detail: err.message });
@@ -290,6 +292,7 @@ router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, r
         results.push({ path: relPath, ok: false, error: err.message });
       }
     }
+    audit.log(req.user, 'file.bulk_delete', site.name, { results });
     res.json({ results });
   } catch (err) {
     res.status(500).json({ error: 'Bulk delete failed', detail: err.message });
@@ -346,6 +349,7 @@ router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) =
     } else {
       await fs.promises.unlink(target);
     }
+    audit.log(req.user, 'file.delete', `${site.name}:${req.query.path}`, { type: stat.isDirectory() ? 'dir' : 'file' });
     res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete', detail: err.message });

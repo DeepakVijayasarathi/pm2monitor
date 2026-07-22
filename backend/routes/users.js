@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireRole } = require('../middleware/auth');
 const { listUsers, createUser, updateUser, deleteUser, ROLES } = require('../users');
+const audit = require('../lib/audit');
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
     const user = await createUser(username, password, role, allowedApps);
+    audit.log(req.user, 'user.create', user.username, { role: user.role });
     res.status(201).json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -35,6 +37,7 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
   try {
     const { role, username, allowedApps } = req.body || {};
     const user = await updateUser(req.params.id, { role, username, allowedApps });
+    audit.log(req.user, 'user.update', user.username, { role, username, allowedApps });
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -52,6 +55,7 @@ router.put('/:id/password', async (req, res) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     await updateUser(req.params.id, { password });
+    audit.log(req.user, 'user.password_change', req.params.id);
     res.json({ message: 'Password updated' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -59,12 +63,13 @@ router.put('/:id/password', async (req, res) => {
 });
 
 // DELETE /api/users/:id — admin only, cannot delete self
-router.delete('/:id', requireRole('admin'), (req, res) => {
+router.delete('/:id', requireRole('admin'), async (req, res) => {
   try {
     if (req.user.id === req.params.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
-    deleteUser(req.params.id);
+    await deleteUser(req.params.id);
+    audit.log(req.user, 'user.delete', req.params.id);
     res.json({ message: 'User deleted' });
   } catch (err) {
     res.status(400).json({ error: err.message });

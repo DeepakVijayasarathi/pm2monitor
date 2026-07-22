@@ -1,6 +1,7 @@
 const { execFile, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { withLock } = require('./mutex');
 
 const CRONTAB_BIN = process.env.CRONTAB_BIN || 'crontab';
 const BACKUP_DIR = path.join(__dirname, '..', 'data', 'cron-backups');
@@ -87,34 +88,43 @@ function assertSchedule(schedule) {
   return s;
 }
 
+// Each of these is serialized per site-user through the lock so two concurrent edits
+// to the same crontab can't both read-before-either-writes and silently drop one edit.
+// Different site users' crontabs use different lock keys and don't block each other.
 async function addEntry(user, schedule, command) {
   const sched = assertSchedule(schedule);
   const cmd = assertSingleLine('command', command);
-  const raw = await readCrontabRaw(user);
-  const lines = parseCrontab(raw);
-  lines.push({ type: 'entry', schedule: sched, command: cmd, raw: `${sched} ${cmd}` });
-  await backupCrontab(user, raw);
-  await writeCrontabRaw(user, serializeCrontab(lines));
+  return withLock(`cron:${user}`, async () => {
+    const raw = await readCrontabRaw(user);
+    const lines = parseCrontab(raw);
+    lines.push({ type: 'entry', schedule: sched, command: cmd, raw: `${sched} ${cmd}` });
+    await backupCrontab(user, raw);
+    await writeCrontabRaw(user, serializeCrontab(lines));
+  });
 }
 
 async function updateEntry(user, index, schedule, command) {
   const sched = assertSchedule(schedule);
   const cmd = assertSingleLine('command', command);
-  const raw = await readCrontabRaw(user);
-  const lines = parseCrontab(raw);
-  if (!lines[index] || lines[index].type !== 'entry') throw new Error('Cron entry not found');
-  lines[index] = { type: 'entry', schedule: sched, command: cmd, raw: `${sched} ${cmd}` };
-  await backupCrontab(user, raw);
-  await writeCrontabRaw(user, serializeCrontab(lines));
+  return withLock(`cron:${user}`, async () => {
+    const raw = await readCrontabRaw(user);
+    const lines = parseCrontab(raw);
+    if (!lines[index] || lines[index].type !== 'entry') throw new Error('Cron entry not found');
+    lines[index] = { type: 'entry', schedule: sched, command: cmd, raw: `${sched} ${cmd}` };
+    await backupCrontab(user, raw);
+    await writeCrontabRaw(user, serializeCrontab(lines));
+  });
 }
 
 async function deleteEntry(user, index) {
-  const raw = await readCrontabRaw(user);
-  const lines = parseCrontab(raw);
-  if (!lines[index] || lines[index].type !== 'entry') throw new Error('Cron entry not found');
-  lines.splice(index, 1);
-  await backupCrontab(user, raw);
-  await writeCrontabRaw(user, serializeCrontab(lines));
+  return withLock(`cron:${user}`, async () => {
+    const raw = await readCrontabRaw(user);
+    const lines = parseCrontab(raw);
+    if (!lines[index] || lines[index].type !== 'entry') throw new Error('Cron entry not found');
+    lines.splice(index, 1);
+    await backupCrontab(user, raw);
+    await writeCrontabRaw(user, serializeCrontab(lines));
+  });
 }
 
 module.exports = { listEntries, addEntry, updateEntry, deleteEntry, parseCrontab, serializeCrontab };

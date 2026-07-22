@@ -1,7 +1,34 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { findById } = require('../users');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
+// Secrets that have shipped as defaults in this project's Dockerfile/code history.
+// Anyone who has ever read either file knows these values, so treat them as public.
+const KNOWN_BAD_SECRETS = new Set(['change-this-secret', 'fallback-secret-change-in-production', 'changeme', 'secret']);
+
+function resolveJwtSecret() {
+  const configured = process.env.JWT_SECRET;
+  if (configured && !KNOWN_BAD_SECRETS.has(configured)) return configured;
+
+  const reason = configured
+    ? 'JWT_SECRET is set to a known placeholder value that has shipped in this project\'s Dockerfile/source — anyone who has read either can forge admin tokens.'
+    : 'JWT_SECRET is not set.';
+
+  // eslint-disable-next-line no-console
+  console.warn([
+    '',
+    '='.repeat(70),
+    `WARNING: ${reason}`,
+    'Generating a random secret for this process instead — existing',
+    'sessions will not survive a restart. Set a real JWT_SECRET env var',
+    'to fix this permanently.',
+    '='.repeat(70),
+    '',
+  ].join('\n'));
+  return crypto.randomBytes(48).toString('hex');
+}
+
+const JWT_SECRET = resolveJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 function signToken(payload) {
