@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireRole } = require('../middleware/auth');
-const { listUsers, createUser, updateUser, deleteUser, ROLES } = require('../users');
+const { listUsers, createUser, updateUser, deleteUser, findById, ROLES } = require('../users');
 const audit = require('../lib/audit');
 
 const router = express.Router();
@@ -54,8 +54,9 @@ router.put('/:id/password', async (req, res) => {
     if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
+    const target = findById(req.params.id);
     await updateUser(req.params.id, { password });
-    audit.log(req.user, 'user.password_change', req.params.id);
+    audit.log(req.user, 'user.password_change', target?.username || req.params.id);
     res.json({ message: 'Password updated' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -68,8 +69,9 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
     if (req.user.id === req.params.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
+    const target = findById(req.params.id);
     await deleteUser(req.params.id);
-    audit.log(req.user, 'user.delete', req.params.id);
+    audit.log(req.user, 'user.delete', target?.username || req.params.id);
     res.json({ message: 'User deleted' });
   } catch (err) {
     res.status(400).json({ error: err.message });

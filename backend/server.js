@@ -36,10 +36,11 @@ app.use('/api/vhosts', authenticateToken, require('./routes/vhosts'));
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(FRONTEND, 'index.html')));
 
-// Socket auth
+// Socket auth — also checks the user still exists (not just that the token is
+// validly signed), so a deleted user's stale token can't open a new connection.
 io.use((socket, next) => {
   const user = verifyToken(socket.handshake.auth.token);
-  if (!user) return next(new Error('Invalid token'));
+  if (!user || !findById(user.id)) return next(new Error('Invalid token'));
   socket.user = user;
   next();
 });
@@ -70,9 +71,13 @@ async function broadcast() {
       timestamp: Date.now(),
     };
 
-    // Filter per-socket so a restricted user's live feed matches their allowedApps
+    // Filter per-socket so a restricted user's live feed matches their allowedApps.
+    // A deleted user's live lookup comes back null — disconnect rather than falling
+    // back to their stale connection-time permissions, which would otherwise keep
+    // feeding them data indefinitely after their account no longer exists.
     for (const socket of io.sockets.sockets.values()) {
-      const live = (socket.user && findById(socket.user.id)) || socket.user;
+      const live = socket.user && findById(socket.user.id);
+      if (!live) { socket.disconnect(true); continue; }
       const processes = allProcs.filter(p => canAccessApp(live, p.name));
       socket.emit('metrics', { ...base, processes });
     }
