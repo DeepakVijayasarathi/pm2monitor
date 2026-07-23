@@ -12,8 +12,8 @@ const router = express.Router();
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-function siteRootOr404(req, res) {
-  const site = resolveSite(req.params.id, req.user);
+async function siteRootOr404(req, res) {
+  const site = await resolveSite(req.params.id, req.user);
   if (!site) { res.status(404).json({ error: 'Site not found' }); return null; }
   return site;
 }
@@ -35,7 +35,7 @@ const upload = multer({
 // GET /api/sites/:id/files?path= — list a directory
 router.get('/:id/files', async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const target = resolvePathOr400(site.path, req.query.path, res);
     if (!target) return;
@@ -72,7 +72,7 @@ router.get('/:id/files', async (req, res) => {
 // GET /api/sites/:id/files/content?path= — read a text file
 router.get('/:id/files/content', async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const target = resolvePathOr400(site.path, req.query.path, res);
     if (!target) return;
@@ -96,7 +96,7 @@ router.get('/:id/files/content', async (req, res) => {
 // PUT /api/sites/:id/files/content — save file content
 router.put('/:id/files/content', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { path: relPath, content } = req.body || {};
     if (typeof relPath !== 'string' || typeof content !== 'string') {
@@ -118,7 +118,7 @@ router.put('/:id/files/content', requireRole('operator', 'admin'), async (req, r
 // POST /api/sites/:id/files/mkdir — create a folder
 router.post('/:id/files/mkdir', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { path: relPath } = req.body || {};
     if (!relPath) return res.status(400).json({ error: 'path is required' });
@@ -135,7 +135,7 @@ router.post('/:id/files/mkdir', requireRole('operator', 'admin'), async (req, re
 // POST /api/sites/:id/files/rename — rename/move within the site root
 router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { from, to } = req.body || {};
     if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
@@ -157,7 +157,7 @@ router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, r
 // POST /api/sites/:id/files/copy — copy a file or folder (recursive) within the site root
 router.post('/:id/files/copy', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { from, to } = req.body || {};
     if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
@@ -182,7 +182,7 @@ router.post('/:id/files/copy', requireRole('operator', 'admin'), async (req, res
 // PUT /api/sites/:id/files/permissions — chmod (admin only)
 router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { path: relPath, mode } = req.body || {};
     if (!/^[0-7]{3}$/.test(mode || '')) return res.status(400).json({ error: 'mode must be 3 octal digits, e.g. 755' });
@@ -203,7 +203,7 @@ router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
 // POST /api/sites/:id/files/extract — extract a .zip already on the server into a sibling folder
 router.post('/:id/files/extract', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { path: relPath } = req.body || {};
     if (!/\.zip$/i.test(relPath || '')) return res.status(400).json({ error: 'path must point to a .zip file' });
@@ -240,7 +240,7 @@ router.post('/:id/files/extract', requireRole('operator', 'admin'), async (req, 
 // POST /api/sites/:id/files/compress — compress selected files/folders into a new .zip in the current dir
 router.post('/:id/files/compress', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { paths, name } = req.body || {};
     if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
@@ -269,7 +269,7 @@ router.post('/:id/files/compress', requireRole('operator', 'admin'), async (req,
 // DELETE /api/sites/:id/files/bulk — delete multiple files/folders; folders still require admin
 router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { paths } = req.body || {};
     if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
@@ -302,7 +302,7 @@ router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, r
 // POST /api/sites/:id/files/bulk-download — zip up a selection and stream it back
 router.post('/:id/files/bulk-download', async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { paths } = req.body || {};
     if (!Array.isArray(paths) || !paths.length) return res.status(400).json({ error: 'paths is required' });
@@ -332,7 +332,7 @@ router.post('/:id/files/bulk-download', async (req, res) => {
 // DELETE /api/sites/:id/files?path= — delete a file, or a folder (recursive delete is admin-only)
 router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const target = resolvePathOr400(site.path, req.query.path, res);
     if (!target) return;
@@ -359,7 +359,7 @@ router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) =
 // GET /api/sites/:id/files/download?path= — stream a file download
 router.get('/:id/files/download', async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const target = resolvePathOr400(site.path, req.query.path, res);
     if (!target) return;
@@ -376,7 +376,7 @@ router.get('/:id/files/download', async (req, res) => {
 // POST /api/sites/:id/files/upload — upload individual file(s) into a directory
 router.post('/:id/files/upload', requireRole('operator', 'admin'), upload.array('files', 20), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const target = resolvePathOr400(site.path, req.query.path, res);
     if (!target) return;

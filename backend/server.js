@@ -9,6 +9,7 @@ const pm2 = require('pm2');
 const si = require('systeminformation');
 const { authenticateToken, verifyToken } = require('./middleware/auth');
 const { initUsers, findById, canAccessApp } = require('./users');
+const { discoverSites, siteNameForProc } = require('./lib/sites');
 
 const app = express();
 const server = http.createServer(app);
@@ -61,6 +62,11 @@ async function broadcast() {
     ]);
 
     const allProcs = procs.map(fmtProc);
+    // Computed from the raw pm2_env (which has cwd) before fmtProc strips it — maps
+    // each process's pm_id to its site-name alias, since fmtProc's output no longer
+    // carries cwd for siteNameForProc to match against.
+    const { sites } = discoverSites();
+    const siteNameByPmId = new Map(procs.map(p => [p.pm_id, siteNameForProc(p, sites)]));
     const base = {
       cpu: { load: Math.round(cpu.currentLoad * 10) / 10, cores: cpu.cpus?.length ?? 0 },
       memory: {
@@ -78,7 +84,7 @@ async function broadcast() {
     for (const socket of io.sockets.sockets.values()) {
       const live = socket.user && findById(socket.user.id);
       if (!live) { socket.disconnect(true); continue; }
-      const processes = allProcs.filter(p => canAccessApp(live, p.name));
+      const processes = allProcs.filter(p => canAccessApp(live, p.name) || canAccessApp(live, siteNameByPmId.get(p.id)));
       socket.emit('metrics', { ...base, processes });
     }
   } catch (_) {}

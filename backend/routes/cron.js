@@ -6,8 +6,8 @@ const audit = require('../lib/audit');
 
 const router = express.Router();
 
-function siteRootOr404(req, res) {
-  const site = resolveSite(req.params.id, req.user);
+async function siteRootOr404(req, res) {
+  const site = await resolveSite(req.params.id, req.user);
   if (!site) { res.status(404).json({ error: 'Site not found' }); return null; }
   return site;
 }
@@ -15,7 +15,7 @@ function siteRootOr404(req, res) {
 // GET /api/sites/:id/cron — any authenticated user with access to the site
 router.get('/:id/cron', async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const entries = await cron.listEntries(site.cpUser);
     res.json({ user: site.cpUser, entries });
@@ -27,7 +27,7 @@ router.get('/:id/cron', async (req, res) => {
 // POST /api/sites/:id/cron — operator + admin
 router.post('/:id/cron', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { schedule, command } = req.body || {};
     await cron.addEntry(site.cpUser, schedule, command);
@@ -41,7 +41,7 @@ router.post('/:id/cron', requireRole('operator', 'admin'), async (req, res) => {
 // PUT /api/sites/:id/cron/:index — operator + admin
 router.put('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     const { schedule, command } = req.body || {};
     await cron.updateEntry(site.cpUser, Number(req.params.index), schedule, command);
@@ -55,7 +55,7 @@ router.put('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res
 // DELETE /api/sites/:id/cron/:index — operator + admin
 router.delete('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res) => {
   try {
-    const site = siteRootOr404(req, res);
+    const site = await siteRootOr404(req, res);
     if (!site) return;
     await cron.deleteEntry(site.cpUser, Number(req.params.index));
     audit.log(req.user, 'cron.delete', site.name, { index: req.params.index });

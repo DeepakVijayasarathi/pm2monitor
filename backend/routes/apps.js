@@ -3,15 +3,24 @@ const pm2 = require('pm2');
 const fs = require('fs');
 const { requireRole } = require('../middleware/auth');
 const { canAccessApp } = require('../users');
+const { discoverSites, siteNameForProc } = require('../lib/sites');
 
 const router = express.Router();
+
+// A nodejs app is reachable under two different names: its own PM2 process name (this
+// page) and its site's domain/folder name (All Applications page, matched by cwd). A
+// user granted only one of the two must still be allowed in here by either name.
+function canAccessProc(user, proc, sites) {
+  return canAccessApp(user, proc.name) || canAccessApp(user, siteNameForProc(proc, sites));
+}
 
 // Resolves :id to its pm2 process name and blocks access if the user isn't allowed to see it
 async function requireAppAccess(req, res, next) {
   try {
     const d = await pm2Describe(req.params.id);
     if (!d || !d.length) return res.status(404).json({ error: 'Application not found' });
-    if (!canAccessApp(req.user, d[0].name)) {
+    const { sites } = discoverSites();
+    if (!canAccessProc(req.user, d[0], sites)) {
       return res.status(403).json({ error: 'You do not have access to this application' });
     }
     req.pm2App = d[0];
@@ -74,7 +83,8 @@ router.post('/restart-all', requireRole('admin'), async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const list = await pm2List();
-    const apps = list.map(fmt).filter(a => canAccessApp(req.user, a.name));
+    const { sites } = discoverSites();
+    const apps = list.filter(p => canAccessProc(req.user, p, sites)).map(fmt);
     res.json({ apps, duplicatePorts: dupPorts(apps) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list applications', detail: err.message });

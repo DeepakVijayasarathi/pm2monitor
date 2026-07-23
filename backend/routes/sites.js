@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
 // POST /api/sites/:id/upload — operator + admin, uploads a .zip and extracts it into the site folder
 router.post('/:id/upload', requireRole('operator', 'admin'), upload.single('file'), async (req, res) => {
   try {
-    const site = resolveSite(req.params.id, req.user);
+    const site = await resolveSite(req.params.id, req.user);
     if (!site) return res.status(404).json({ error: 'Site not found' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 

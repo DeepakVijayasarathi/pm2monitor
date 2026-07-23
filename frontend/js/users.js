@@ -142,7 +142,10 @@ async function loadSitesOnce() {
 
 function sitesForUser(u) {
   if (u.role === 'admin' || !u.allowedApps || !u.allowedApps.length) return allSites;
-  return allSites.filter(s => u.allowedApps.includes(s.name));
+  // A nodejs site can be granted by its site name OR its PM2 process's own name (see
+  // backend/lib/sites.js's canAccessSite) — check both so this preview matches what
+  // the user would actually see.
+  return allSites.filter(s => u.allowedApps.includes(s.name) || (s.pm2Name && u.allowedApps.includes(s.pm2Name)));
 }
 
 function badge(st) {
@@ -152,7 +155,12 @@ function badge(st) {
 
 function renderUserApps(u) {
   const sites = sitesForUser(u);
-  const restartable = sites.filter(s => s.type === 'nodejs' && s.pm2Id !== null);
+  // Buttons here reflect what THIS user's own role permits (Permission Matrix: Deploy
+  // and Restart/Stop/Start are operator+admin only) — not what the viewing admin could
+  // always do — so this panel accurately answers "what can this user do", not "what
+  // could I do to their apps".
+  const canOperate = u.role === 'admin' || u.role === 'operator';
+  const restartable = canOperate ? sites.filter(s => s.type === 'nodejs' && s.pm2Id !== null) : [];
 
   if (!sites.length) {
     return '<div style="padding:14px 20px;color:var(--muted);font-size:.83rem">No applications in scope.</div>';
@@ -160,6 +168,7 @@ function renderUserApps(u) {
 
   return `
     <div style="padding:14px 20px">
+      ${!canOperate ? `<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px"><i class="fa-solid fa-eye"></i> Viewer role — read-only, no actions available.</div>` : ''}
       ${restartable.length ? `
         <div style="margin-bottom:10px">
           <button class="btn btn-ghost btn-sm" onclick="restartAllForUser('${esc(u.id)}', this)">
@@ -177,14 +186,16 @@ function renderUserApps(u) {
               <td>${s.type === 'nodejs' ? badge(s.status) : '<span style="color:var(--muted)">—</span>'}</td>
               <td>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
-                  <button class="btn btn-ghost btn-sm" onclick="openDeployModal('${esc(s.id)}','${esc(s.name)}')" title="Deploy">
-                    <i class="fa-solid fa-upload"></i>
-                  </button>
-                  ${s.type === 'nodejs' && s.pm2Id !== null ? `
-                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'restart',this)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
-                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'stop',this)" title="Stop"><i class="fa-solid fa-stop"></i></button>
-                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'start',this)" title="Start"><i class="fa-solid fa-play"></i></button>
-                  ` : ''}
+                  ${canOperate ? `
+                    <button class="btn btn-ghost btn-sm" onclick="openDeployModal('${esc(s.id)}','${esc(s.name)}')" title="Deploy">
+                      <i class="fa-solid fa-upload"></i>
+                    </button>
+                    ${s.type === 'nodejs' && s.pm2Id !== null ? `
+                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'restart',this)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
+                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'stop',this)" title="Stop"><i class="fa-solid fa-stop"></i></button>
+                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'start',this)" title="Start"><i class="fa-solid fa-play"></i></button>
+                    ` : ''}
+                  ` : '<span style="color:var(--muted)">—</span>'}
                 </div>
               </td>
             </tr>
