@@ -134,6 +134,17 @@ input,select{font:inherit;color:var(--text)}
   width:100%;
   font-size:0.9rem;
 }
+/* Checkboxes/radios inside a .form-group must not inherit the text-input sizing above —
+   width:100% on a flex-item checkbox stretches it to fill the row instead of its natural size. */
+.form-group input[type="checkbox"],
+.form-group input[type="radio"]{
+  width:auto;
+  padding:0;
+  background:none;
+  border:none;
+  accent-color:var(--indigo);
+  flex-shrink:0;
+}
 .form-group input:focus{border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-glow)}
 .input-wrap{position:relative}
 .input-wrap input{padding-right:44px}
