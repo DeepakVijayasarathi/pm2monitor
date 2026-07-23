@@ -54,13 +54,24 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
 }
 
-/* ===== LOAD APPS (for allowed-apps checklist) ===== */
+/* ===== LOAD APPS (for allowed-apps checklist) =====
+   allowedApps is matched against two different names for the same nodejs app:
+   the PM2 process's own name (Applications page) and the site's domain/folder
+   name (All Applications page) — these are often NOT the same string, so the
+   checklist must offer both, and static sites (no PM2 process at all) only
+   ever have the site name. Merge both sources so nothing is unselectable. */
 let appNames = [];
 
 async function loadAppNames() {
   try {
-    const data = await Auth.apiFetch('/apps');
-    appNames = (data.apps || []).map(a => a.name);
+    const [appsData, sitesData] = await Promise.all([
+      Auth.apiFetch('/apps').catch(() => ({ apps: [] })),
+      Auth.apiFetch('/sites').catch(() => ({ sites: [] })),
+    ]);
+    const names = new Set();
+    (appsData.apps || []).forEach(a => names.add(a.name));
+    (sitesData.sites || []).forEach(s => names.add(s.name));
+    appNames = [...names].sort((a, b) => a.localeCompare(b));
   } catch (e) {
     appNames = [];
   }

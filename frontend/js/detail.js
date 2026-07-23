@@ -87,7 +87,7 @@ async function loadAppInfo() {
     const app = await Auth.apiFetch(`/apps/${APP_ID}`);
     document.getElementById('appName').textContent = app.name;
     document.getElementById('appBadge').innerHTML = badge(app.status);
-    document.title = `${app.name} — PM2 Monitor`;
+    document.title = `${app.name} — CloudPanel Monitor`;
 
     document.getElementById('appInfo').innerHTML = [
       ['Status',     badge(app.status)],
