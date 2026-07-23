@@ -113,6 +113,128 @@ function appsSummary(u) {
   return `${u.allowedApps.length} app${u.allowedApps.length === 1 ? '' : 's'}`;
 }
 
+/* ===== PER-USER APP QUICK ACTIONS ===== */
+let allSites = [];
+let sitesLoaded = false;
+const expandedUsers = new Set();
+
+async function loadSitesOnce() {
+  if (sitesLoaded) return;
+  try {
+    const data = await Auth.apiFetch('/sites');
+    allSites = data.sites || [];
+    sitesLoaded = true;
+  } catch {
+    allSites = [];
+  }
+}
+
+function sitesForUser(u) {
+  if (u.role === 'admin' || !u.allowedApps || !u.allowedApps.length) return allSites;
+  return allSites.filter(s => u.allowedApps.includes(s.name));
+}
+
+function badge(st) {
+  const m = { online: 'b-online', stopped: 'b-stopped', errored: 'b-errored', launching: 'b-launching' };
+  return `<span class="badge ${m[st] || 'b-default'}">${st || '—'}</span>`;
+}
+
+function renderUserApps(u) {
+  const sites = sitesForUser(u);
+  const restartable = sites.filter(s => s.type === 'nodejs' && s.pm2Id !== null);
+
+  if (!sites.length) {
+    return '<div style="padding:14px 20px;color:var(--muted);font-size:.83rem">No applications in scope.</div>';
+  }
+
+  return `
+    <div style="padding:14px 20px">
+      ${restartable.length ? `
+        <div style="margin-bottom:10px">
+          <button class="btn btn-ghost btn-sm" onclick="restartAllForUser('${esc(u.id)}', this)">
+            <i class="fa-solid fa-rotate-right"></i> Restart All (${restartable.length})
+          </button>
+        </div>
+      ` : ''}
+      <table class="dtable" style="font-size:.8rem">
+        <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${sites.map(s => `
+            <tr>
+              <td>${esc(s.name)}</td>
+              <td>${s.type === 'nodejs' ? '<span class="badge b-online" style="background:var(--indigo-dim);color:var(--indigo)"><i class="fa-brands fa-node-js"></i> Node.js</span>' : '<span class="badge b-default">Static</span>'}</td>
+              <td>${s.type === 'nodejs' ? badge(s.status) : '<span style="color:var(--muted)">—</span>'}</td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  <button class="btn btn-ghost btn-sm" onclick="openDeployModal('${esc(s.id)}','${esc(s.name)}')" title="Deploy">
+                    <i class="fa-solid fa-upload"></i>
+                  </button>
+                  ${s.type === 'nodejs' && s.pm2Id !== null ? `
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'restart',this)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'stop',this)" title="Stop"><i class="fa-solid fa-stop"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'start',this)" title="Start"><i class="fa-solid fa-play"></i></button>
+                  ` : ''}
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function toggleUserApps(id) {
+  if (expandedUsers.has(id)) {
+    expandedUsers.delete(id);
+  } else {
+    await loadSitesOnce();
+    expandedUsers.add(id);
+  }
+  renderUsers();
+}
+
+async function appAction(pm2Id, action, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  try {
+    await Auth.apiFetch(`/apps/${pm2Id}/${action}`, { method: 'POST' });
+    toast(`${action.charAt(0).toUpperCase() + action.slice(1)} OK`, 'success');
+    sitesLoaded = false;
+    await loadSitesOnce();
+    renderUsers();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+async function restartAllForUser(id, btn) {
+  const u = users.find(x => x.id === id);
+  if (!u) return;
+  const targets = sitesForUser(u).filter(s => s.type === 'nodejs' && s.pm2Id !== null);
+  if (!targets.length) return;
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Restarting…';
+  try {
+    const results = await Promise.allSettled(targets.map(s => Auth.apiFetch(`/apps/${s.pm2Id}/restart`, { method: 'POST' })));
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed) toast(`${targets.length - failed} of ${targets.length} restarted`, 'warning');
+    else toast(`Restarted ${targets.length} app${targets.length === 1 ? '' : 's'}`, 'success');
+    sitesLoaded = false;
+    await loadSitesOnce();
+    renderUsers();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
 /* ===== LOAD USERS ===== */
 let users = [];
 
@@ -124,20 +246,26 @@ async function loadUsers() {
     document.getElementById('userCount').textContent = users.length;
   } catch (e) {
     document.getElementById('usersTbody').innerHTML =
-      `<tr><td colspan="5" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="6" class="tl" style="color:var(--red)"><i class="fa-solid fa-circle-xmark"></i> ${esc(e.message)}</td></tr>`;
   }
 }
 
 function renderUsers() {
   const tbody = document.getElementById('usersTbody');
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="tl">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="tl">No users found.</td></tr>';
     return;
   }
   tbody.innerHTML = users.map(u => {
     const isSelf = u.id === me.id;
+    const expanded = expandedUsers.has(u.id);
     return `
       <tr>
+        <td>
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px" onclick="toggleUserApps('${esc(u.id)}')" title="Show apps">
+            <i class="fa-solid fa-chevron-${expanded ? 'down' : 'right'}"></i>
+          </button>
+        </td>
         <td>
           <div style="display:flex;align-items:center;gap:8px">
             <div class="u-avatar" style="width:30px;height:30px;font-size:.8rem;flex-shrink:0">${esc(u.username[0].toUpperCase())}</div>
@@ -161,6 +289,7 @@ function renderUsers() {
           </div>
         </td>
       </tr>
+      ${expanded ? `<tr><td colspan="6" style="padding:0;background:var(--bg-surface)">${renderUserApps(u)}</td></tr>` : ''}
     `;
   }).join('');
 }
@@ -348,6 +477,80 @@ async function deleteUser(id, username, btn) {
     }
   }, 4000);
 }
+
+/* ===== DEPLOY MODAL ===== */
+let deployTargetId = null;
+
+function openDeployModal(id, name) {
+  deployTargetId = id;
+  document.getElementById('deployTargetName').textContent = name;
+  document.getElementById('deployFile').value = '';
+  document.getElementById('deployErr').classList.add('hidden');
+  document.getElementById('deployErr').textContent = '';
+  document.getElementById('deployPbarWrap').classList.add('hidden');
+  document.getElementById('deployPbar').style.width = '0%';
+  document.getElementById('deployModal').classList.remove('hidden');
+}
+
+function closeDeployModal() {
+  document.getElementById('deployModal').classList.add('hidden');
+  deployTargetId = null;
+}
+
+document.getElementById('deployModalClose').onclick = closeDeployModal;
+document.getElementById('deployCancel').onclick = closeDeployModal;
+document.getElementById('deployModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('deployModal')) closeDeployModal();
+});
+
+function uploadZip(id, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/sites/${id}/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${Auth.getToken()}`);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || `Upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    const fd = new FormData();
+    fd.append('file', file);
+    xhr.send(fd);
+  });
+}
+
+document.getElementById('deploySave').onclick = async () => {
+  const fileInput = document.getElementById('deployFile');
+  const file = fileInput.files[0];
+  const errEl = document.getElementById('deployErr');
+  errEl.classList.add('hidden');
+
+  if (!file) { errEl.textContent = 'Choose a .zip file first'; errEl.classList.remove('hidden'); return; }
+  if (!/\.zip$/i.test(file.name)) { errEl.textContent = 'Only .zip files are accepted'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('deploySave');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deploying…';
+  document.getElementById('deployPbarWrap').classList.remove('hidden');
+
+  try {
+    const res = await uploadZip(deployTargetId, file, pct => {
+      document.getElementById('deployPbar').style.width = pct + '%';
+    });
+    toast(res.message || 'Deployed', 'success');
+    closeDeployModal();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+};
 
 /* ===== REFRESH ===== */
 document.getElementById('refreshUsers').onclick = loadUsers;

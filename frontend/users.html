@@ -107,10 +107,10 @@
       <div class="t-wrap">
         <table class="dtable">
           <thead>
-            <tr><th>Username</th><th>Role</th><th>Apps</th><th>Created</th><th>Actions</th></tr>
+            <tr><th style="width:28px"></th><th>Username</th><th>Role</th><th>Apps</th><th>Created</th><th>Actions</th></tr>
           </thead>
           <tbody id="usersTbody">
-            <tr><td colspan="4" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+            <tr><td colspan="6" class="tl"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -178,6 +178,33 @@
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" id="pwdCancel">Cancel</button>
         <button class="btn btn-primary" id="pwdSave"><i class="fa-solid fa-key"></i> Update Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deploy Modal -->
+<div class="modal-ov hidden" id="deployModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3><i class="fa-solid fa-upload"></i> Deploy Files — <span id="deployTargetName"></span></h3>
+      <button class="m-close" id="deployModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fa-solid fa-file-zipper"></i> Zip file</label>
+        <input type="file" id="deployFile" class="fi" style="width:100%" accept=".zip"/>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:6px">Extracted into the app folder, overwriting matching files. Max 300MB.</div>
+      </div>
+      <div class="pbar hidden" id="deployPbarWrap" style="margin-bottom:14px">
+        <div class="pfill cpu" id="deployPbar" style="width:0%"></div>
+      </div>
+      <div id="deployErr" class="alert-error hidden" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" id="deployCancel">Cancel</button>
+        <button class="btn btn-primary" id="deploySave">
+          <i class="fa-solid fa-upload"></i> Deploy
+        </button>
       </div>
     </div>
   </div>
