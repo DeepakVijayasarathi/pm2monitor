@@ -84,6 +84,7 @@ body{
 a{text-decoration:none;color:inherit}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
 input,select{font:inherit;color:var(--text)}
+input[type="checkbox"],input[type="radio"]{accent-color:var(--indigo)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border-hover);border-radius:10px}
@@ -549,12 +550,12 @@ input,select{font:inherit;color:var(--text)}
   text-transform:uppercase;letter-spacing:0.5px;
 }
 .info-row{
-  display:flex;justify-content:space-between;align-items:center;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
   padding:7px 0;border-bottom:1px solid var(--border);font-size:0.83rem;
 }
 .info-row:last-child{border-bottom:none}
-.ir-key{color:var(--text-2)}
-.ir-val{font-weight:600}
+.ir-key{color:var(--text-2);flex-shrink:0;padding-top:1px}
+.ir-val{font-weight:600;text-align:right;min-width:0}
 
 .core-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px;margin-top:4px}
 .core-box{text-align:center}
