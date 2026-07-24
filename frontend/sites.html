@@ -118,7 +118,7 @@
       <h3><i class="fa-solid fa-plus"></i> New Application</h3>
       <button class="m-close" id="newSiteModalClose"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body" style="padding:24px" id="newSiteForm">
+    <div class="modal-body" style="padding:24px;overflow-y:auto" id="newSiteForm">
       <div class="form-group" style="margin-bottom:14px">
         <label><i class="fa-solid fa-globe"></i> Domain name</label>
         <input type="text" id="nsDomain" class="fi" style="width:100%" placeholder="app.example.com"/>
@@ -148,17 +148,19 @@
       <div id="nsFieldsProxy" class="ns-fields" style="display:none;margin-bottom:14px">
         <div class="form-group"><label>Reverse proxy URL</label><input type="text" id="nsProxyUrl" class="fi" style="width:100%" placeholder="http://127.0.0.1:8000"/></div>
       </div>
-      <div class="form-group" style="margin-bottom:14px">
+      <div class="form-group" style="margin-bottom:0">
         <label>Site user <span style="color:var(--muted);font-weight:400">(optional — auto-generated from domain if left blank)</span></label>
         <input type="text" id="nsSiteUser" class="fi" style="width:100%" placeholder="auto"/>
       </div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0" id="newSiteFormFoot">
       <div id="newSiteErr" class="alert-error hidden" style="margin-bottom:14px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" id="newSiteCancel">Cancel</button>
         <button class="btn btn-primary" id="newSiteSave"><i class="fa-solid fa-check"></i> Create</button>
       </div>
     </div>
-    <div class="modal-body hidden" style="padding:24px" id="newSiteResult">
+    <div class="modal-body hidden" style="padding:24px;overflow-y:auto" id="newSiteResult">
       <div class="dup-alert" style="background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,.2);margin-bottom:14px">
         <i class="fa-solid fa-circle-check"></i><span>Site created. This password is shown once and not stored — save it now.</span>
       </div>
@@ -179,15 +181,17 @@
       <h3><i class="fa-solid fa-lock"></i> Install SSL — <span id="sslTargetName"></span></h3>
       <button class="m-close" id="sslModalClose"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body" style="padding:24px">
+    <div class="modal-body" style="padding:24px;overflow-y:auto">
       <div class="form-group" style="margin-bottom:14px">
         <label>Additional domains <span style="color:var(--muted);font-weight:400">(optional, comma-separated)</span></label>
         <input type="text" id="sslSan" class="fi" style="width:100%" placeholder="www.example.com, api.example.com"/>
       </div>
-      <div id="sslErr" class="alert-error hidden" style="margin-bottom:14px"></div>
-      <div id="sslOutputWrap" class="hidden" style="margin-bottom:14px">
+      <div id="sslOutputWrap" class="hidden">
         <pre class="log-pre" id="sslOutput" style="max-height:180px"></pre>
       </div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0">
+      <div id="sslErr" class="alert-error hidden" style="margin-bottom:14px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" id="sslCancel">Close</button>
         <button class="btn btn-primary" id="sslSave"><i class="fa-solid fa-lock"></i> Issue Certificate</button>
@@ -225,13 +229,15 @@
       <h3><i class="fa-solid fa-clock"></i> Cron Jobs — <span id="cronTargetName"></span></h3>
       <button class="m-close" id="cronModalClose"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body" style="padding:20px 24px">
-      <div class="t-wrap" style="margin-bottom:16px">
+    <div class="modal-body" style="padding:20px 24px;overflow-y:auto">
+      <div class="t-wrap">
         <table class="dtable">
           <thead><tr><th>Schedule</th><th>Command</th><th></th></tr></thead>
           <tbody id="cronTbody"><tr><td colspan="3" class="tl"><i class="fa-solid fa-spinner fa-spin"></i></td></tr></tbody>
         </table>
       </div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0">
       <div id="cronAddForm" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <input type="text" id="cronSchedule" class="fi mono" style="width:140px" placeholder="* * * * *"/>
         <input type="text" id="cronCommand" class="fi mono" style="flex:1;min-width:180px" placeholder="/path/to/script.sh"/>

@@ -246,6 +246,7 @@ document.getElementById('newSiteBtn').onclick = () => {
   document.getElementById('newSiteErr').classList.add('hidden');
   nsShowFieldsFor('nodejs');
   document.getElementById('newSiteForm').classList.remove('hidden');
+  document.getElementById('newSiteFormFoot').classList.remove('hidden');
   document.getElementById('newSiteResult').classList.add('hidden');
   document.getElementById('newSiteModal').classList.remove('hidden');
 };
@@ -281,6 +282,7 @@ document.getElementById('newSiteSave').onclick = async () => {
     document.getElementById('nsResultPassword').value = res.siteUserPassword;
     document.getElementById('nsResultOutput').textContent = res.output || '';
     document.getElementById('newSiteForm').classList.add('hidden');
+    document.getElementById('newSiteFormFoot').classList.add('hidden');
     document.getElementById('newSiteResult').classList.remove('hidden');
     toast(res.message || 'Site created', 'success');
   } catch (e) {

@@ -126,7 +126,7 @@
       <h3 id="modalTitle"><i class="fa-solid fa-user-plus"></i> Add User</h3>
       <button class="m-close" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body" style="padding:24px">
+    <div class="modal-body" style="padding:24px;overflow-y:auto">
       <div class="form-group" style="margin-bottom:14px">
         <label><i class="fa-solid fa-user"></i> Username</label>
         <input type="text" id="mUsername" class="fi" style="width:100%" placeholder="Enter username"/>
@@ -143,7 +143,7 @@
           <option value="admin">Admin — full access</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:20px" id="appsGroup">
+      <div class="form-group" id="appsGroup">
         <label><i class="fa-solid fa-cubes"></i> Allowed Apps</label>
         <div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Leave "All apps" checked to grant access to every application, including ones added later.</div>
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:600">
@@ -151,6 +151,8 @@
         </label>
         <div id="mAppList" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;display:none"></div>
       </div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0">
       <div id="modalErr" class="alert-error hidden" style="margin-bottom:14px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" id="modalCancel">Cancel</button>
