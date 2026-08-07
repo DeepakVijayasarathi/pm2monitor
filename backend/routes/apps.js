@@ -1,7 +1,7 @@
 const express = require('express');
 const pm2 = require('pm2');
 const fs = require('fs');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const { canAccessApp } = require('../users');
 const { discoverSites, siteNameForProc } = require('../lib/sites');
 
@@ -68,19 +68,26 @@ function dupPorts(apps) {
   return d;
 }
 
-// POST /restart-all — MUST be before /:id routes to avoid param capture
-router.post('/restart-all', requireRole('admin'), async (req, res) => {
+// POST /restart-all — MUST be before /:id routes to avoid param capture.
+// Gated by apps.delete (the elevated tier for apps), same trust level the old
+// admin-only role required for this bulk action. Scoped to apps this user can
+// actually access — previously this bypassed allowedApps entirely because only the
+// unrestricted admin role could reach it; that shortcut no longer holds once a
+// non-unrestricted user can also be granted apps.delete.
+router.post('/restart-all', requirePermission('apps', 'delete'), async (req, res) => {
   try {
     const list = await pm2List();
-    await Promise.all(list.map(p => pm2Do('restart', p.pm_id)));
+    const { sites } = discoverSites();
+    const accessible = list.filter(p => canAccessProc(req.user, p, sites));
+    await Promise.all(accessible.map(p => pm2Do('restart', p.pm_id)));
     res.json({ message: 'All applications restarted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to restart all', detail: err.message });
   }
 });
 
-// GET / — all authenticated users (viewer, operator, admin), filtered to allowed apps
-router.get('/', async (req, res) => {
+// GET / — any user with apps.read, filtered to allowed apps
+router.get('/', requirePermission('apps', 'read'), async (req, res) => {
   try {
     const list = await pm2List();
     const { sites } = discoverSites();
@@ -92,7 +99,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /:id
-router.get('/:id', requireAppAccess, async (req, res) => {
+router.get('/:id', requirePermission('apps', 'read'), requireAppAccess, async (req, res) => {
   try {
     res.json(fmt(req.pm2App));
   } catch (err) {
@@ -101,7 +108,7 @@ router.get('/:id', requireAppAccess, async (req, res) => {
 });
 
 // GET /:id/logs
-router.get('/:id/logs', requireAppAccess, async (req, res) => {
+router.get('/:id/logs', requirePermission('apps', 'read'), requireAppAccess, async (req, res) => {
   try {
     const d = [req.pm2App];
     const env = d[0].pm2_env || {};
@@ -125,8 +132,8 @@ router.get('/:id/logs', requireAppAccess, async (req, res) => {
   }
 });
 
-// POST /:id/restart — operator + admin
-router.post('/:id/restart', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
+// POST /:id/restart — apps.write
+router.post('/:id/restart', requirePermission('apps', 'write'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('restart', req.params.id);
     res.json({ message: `Restarted ${req.params.id}` });
@@ -135,8 +142,8 @@ router.post('/:id/restart', requireRole('operator', 'admin'), requireAppAccess, 
   }
 });
 
-// POST /:id/stop — operator + admin
-router.post('/:id/stop', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
+// POST /:id/stop — apps.write
+router.post('/:id/stop', requirePermission('apps', 'write'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('stop', req.params.id);
     res.json({ message: `Stopped ${req.params.id}` });
@@ -145,8 +152,8 @@ router.post('/:id/stop', requireRole('operator', 'admin'), requireAppAccess, asy
   }
 });
 
-// POST /:id/start — operator + admin
-router.post('/:id/start', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
+// POST /:id/start — apps.write
+router.post('/:id/start', requirePermission('apps', 'write'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('start', req.params.id);
     res.json({ message: `Started ${req.params.id}` });
@@ -155,8 +162,8 @@ router.post('/:id/start', requireRole('operator', 'admin'), requireAppAccess, as
   }
 });
 
-// POST /:id/flush — operator + admin
-router.post('/:id/flush', requireRole('operator', 'admin'), requireAppAccess, async (req, res) => {
+// POST /:id/flush — apps.write
+router.post('/:id/flush', requirePermission('apps', 'write'), requireAppAccess, async (req, res) => {
   try {
     await pm2Flush(req.params.id);
     res.json({ message: `Logs flushed for ${req.params.id}` });
@@ -165,8 +172,10 @@ router.post('/:id/flush', requireRole('operator', 'admin'), requireAppAccess, as
   }
 });
 
-// DELETE /:id — admin only
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+// DELETE /:id — apps.delete. requireAppAccess is essential here (not just decoration):
+// unlike the old admin role, apps.delete no longer implies unrestricted allowedApps, so
+// without this a delete-capable user scoped to a subset of apps could delete any app by id.
+router.delete('/:id', requirePermission('apps', 'delete'), requireAppAccess, async (req, res) => {
   try {
     await pm2Do('delete', req.params.id);
     res.json({ message: `Deleted ${req.params.id}` });

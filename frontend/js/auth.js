@@ -65,12 +65,16 @@ const Auth = (() => {
     }
   }
 
-  function requireAdmin() {
+  function hasPermission(category, action) {
     const user = getUser();
-    if (!user || user.role !== 'admin') {
+    return !!(user && user.permissions && user.permissions[category] && user.permissions[category][action]);
+  }
+
+  function requirePermission(category, action) {
+    if (!hasPermission(category, action)) {
       window.location.href = '/';
     }
   }
 
-  return { getToken, getUser, login, logout, apiFetch, isAuthenticated, requireAuth, requireAdmin };
+  return { getToken, getUser, login, logout, apiFetch, isAuthenticated, requireAuth, hasPermission, requirePermission };
 })();

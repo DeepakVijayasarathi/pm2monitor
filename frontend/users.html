@@ -60,37 +60,28 @@
 
   <main class="content">
 
-    <!-- Permission Matrix -->
+    <!-- Permission Legend -->
     <div class="section-card" style="margin-bottom:18px">
       <div class="sc-header">
-        <span class="sc-title"><i class="fa-solid fa-shield-halved"></i> Permission Matrix</span>
+        <span class="sc-title"><i class="fa-solid fa-shield-halved"></i> Permission Categories</span>
       </div>
+      <div style="font-size:.75rem;color:var(--muted);padding:0 20px 12px">Each user is granted Read / Write / Delete independently per category below — there are no fixed roles. Checking Write or Delete automatically includes the tiers below it.</div>
       <div style="overflow-x:auto">
         <table class="dtable">
           <thead>
             <tr>
-              <th>Permission</th>
-              <th><span class="role-badge rb-admin">Admin</span></th>
-              <th><span class="role-badge rb-operator">Operator</span></th>
-              <th><span class="role-badge rb-viewer">Viewer</span></th>
+              <th>Category</th>
+              <th>Read</th>
+              <th>Write</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>View apps &amp; system stats</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
-            <tr><td>View logs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
-            <tr><td>Restart / Stop / Start apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Flush logs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Delete apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Restart all apps</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Browse &amp; download files</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
-            <tr><td>Edit / upload / rename files</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Delete a folder (recursive)</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Deploy zip to an app</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>View cron jobs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td></tr>
-            <tr><td>Add / edit / delete cron jobs</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Create / delete sites</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Install SSL certificates</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
-            <tr><td>Manage users</td><td class="perm-yes"><i class="fa-solid fa-check"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td><td class="perm-no"><i class="fa-solid fa-xmark"></i></td></tr>
+            <tr><td><i class="fa-solid fa-cubes"></i> Apps</td><td>View apps, stats &amp; logs</td><td>Restart / stop / start / flush logs</td><td>Delete an app, restart all apps</td></tr>
+            <tr><td><i class="fa-solid fa-folder-open"></i> Files</td><td>Browse &amp; download files</td><td>Edit / upload / rename / deploy zip</td><td>Delete files &amp; folders, change permissions</td></tr>
+            <tr><td><i class="fa-solid fa-clock"></i> Cron Jobs</td><td>View cron jobs</td><td>Add / edit cron jobs</td><td>Delete cron jobs</td></tr>
+            <tr><td><i class="fa-solid fa-server"></i> Sites &amp; SSL</td><td>View sites</td><td>Create sites, install SSL</td><td>Delete sites</td></tr>
+            <tr><td><i class="fa-solid fa-user-shield"></i> Users</td><td>View users</td><td>Create / edit users, reset passwords</td><td>Delete users</td></tr>
           </tbody>
         </table>
       </div>
@@ -136,12 +127,8 @@
         <input type="password" id="mPassword" class="fi" style="width:100%" placeholder="Enter password (min 6 chars)"/>
       </div>
       <div class="form-group" style="margin-bottom:14px">
-        <label><i class="fa-solid fa-shield-halved"></i> Role</label>
-        <select id="mRole" class="sel" style="width:100%">
-          <option value="viewer">Viewer — read only</option>
-          <option value="operator">Operator — can restart/stop/start</option>
-          <option value="admin">Admin — full access</option>
-        </select>
+        <label><i class="fa-solid fa-shield-halved"></i> Permissions</label>
+        <div id="mPermGrid" class="perm-grid"></div>
       </div>
       <div class="form-group" id="appsGroup">
         <label><i class="fa-solid fa-cubes"></i> Allowed Apps</label>

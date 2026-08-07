@@ -1,5 +1,5 @@
 const express = require('express');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const { runClpctl, randomPassword, assertSafeArgValue, isValidDomain, deriveSiteUser, assertNotReservedUsername } = require('../lib/clpctl');
 const audit = require('../lib/audit');
 
@@ -42,8 +42,8 @@ function buildArgs(body) {
   return { args, user };
 }
 
-// POST /api/vhosts — admin only, creates a new CloudPanel site via clpctl
-router.post('/', requireRole('admin'), async (req, res) => {
+// POST /api/vhosts — sites.write, creates a new CloudPanel site via clpctl
+router.post('/', requirePermission('sites', 'write'), async (req, res) => {
   let user;
   try {
     const password = randomPassword();
@@ -68,8 +68,8 @@ router.post('/', requireRole('admin'), async (req, res) => {
   }
 });
 
-// DELETE /api/vhosts/:domainName — admin only, permanently removes the site + its Linux user
-router.delete('/:domainName', requireRole('admin'), async (req, res) => {
+// DELETE /api/vhosts/:domainName — sites.delete, permanently removes the site + its Linux user
+router.delete('/:domainName', requirePermission('sites', 'delete'), async (req, res) => {
   try {
     const domainName = assertSafeArgValue('domainName', req.params.domainName);
     if (!isValidDomain(domainName)) return res.status(400).json({ error: 'Invalid domain name' });
@@ -83,8 +83,8 @@ router.delete('/:domainName', requireRole('admin'), async (req, res) => {
   }
 });
 
-// POST /api/vhosts/ssl — admin only, issues a Let's Encrypt certificate
-router.post('/ssl', requireRole('admin'), async (req, res) => {
+// POST /api/vhosts/ssl — sites.write, issues a Let's Encrypt certificate
+router.post('/ssl', requirePermission('sites', 'write'), async (req, res) => {
   try {
     const domainName = assertSafeArgValue('domainName', req.body.domainName);
     if (!isValidDomain(domainName)) return res.status(400).json({ error: 'Invalid domain name' });

@@ -1,8 +1,13 @@
 Auth.requireAuth();
 
 const me = Auth.getUser();
-const isAdmin    = me?.role === 'admin';
-const isOperator = me?.role === 'admin' || me?.role === 'operator';
+const canManageUsers = Auth.hasPermission('users', 'read');
+const canWriteFiles  = Auth.hasPermission('files', 'write');
+const canWriteApps   = Auth.hasPermission('apps', 'write');
+const canWriteSites  = Auth.hasPermission('sites', 'write');
+const canDeleteSites = Auth.hasPermission('sites', 'delete');
+const canWriteCron   = Auth.hasPermission('cron', 'write');
+const canDeleteCron  = Auth.hasPermission('cron', 'delete');
 
 /* ===== THEME ===== */
 const applyTheme = t => {
@@ -19,7 +24,8 @@ document.getElementById('themeToggle').onclick = () =>
 if (me) {
   document.getElementById('uName').textContent = me.username;
   document.getElementById('uAvatar').textContent = me.username[0].toUpperCase();
-  if (isAdmin) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (canManageUsers) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (canWriteSites) document.querySelectorAll('.sites-write-only').forEach(e => e.classList.remove('hidden'));
 }
 document.getElementById('userBtn').onclick = e => {
   e.stopPropagation();
@@ -106,19 +112,19 @@ function renderSites() {
           <a class="btn btn-ghost btn-sm" href="files.html?site=${encodeURIComponent(s.id)}&name=${encodeURIComponent(s.name)}">
             <i class="fa-solid fa-folder-open"></i> Browse
           </a>
-          ${isOperator ? `<button class="btn btn-ghost btn-sm" onclick="openUploadModal('${esc(s.id)}','${esc(s.name)}')">
+          ${canWriteFiles ? `<button class="btn btn-ghost btn-sm" onclick="openUploadModal('${esc(s.id)}','${esc(s.name)}')">
             <i class="fa-solid fa-upload"></i> Deploy
           </button>` : ''}
-          ${isOperator && s.type === 'nodejs' ? `<button class="btn btn-ghost btn-sm" onclick="restartSite(${s.pm2Id}, this)">
+          ${canWriteApps && s.type === 'nodejs' ? `<button class="btn btn-ghost btn-sm" onclick="restartSite(${s.pm2Id}, this)">
             <i class="fa-solid fa-rotate-right"></i> Restart
           </button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openCronModal('${esc(s.id)}','${esc(s.name)}')">
             <i class="fa-solid fa-clock"></i> Cron
           </button>
-          ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="openSslModal('${esc(s.name)}')">
+          ${canWriteSites ? `<button class="btn btn-ghost btn-sm" onclick="openSslModal('${esc(s.name)}')">
             <i class="fa-solid fa-lock"></i> SSL
-          </button>
-          <button class="btn btn-sm btn-danger" onclick="openDeleteSiteModal('${esc(s.name)}')">
+          </button>` : ''}
+          ${canDeleteSites ? `<button class="btn btn-sm btn-danger" onclick="openDeleteSiteModal('${esc(s.name)}')">
             <i class="fa-solid fa-trash"></i> Delete
           </button>` : ''}
         </div>
@@ -386,7 +392,7 @@ async function openCronModal(id, name) {
   document.getElementById('cronSchedule').value = '';
   document.getElementById('cronCommand').value = '';
   document.getElementById('cronErr').classList.add('hidden');
-  document.getElementById('cronAddForm').classList.toggle('hidden', !isOperator);
+  document.getElementById('cronAddForm').classList.toggle('hidden', !canWriteCron);
   document.getElementById('cronModal').classList.remove('hidden');
   await loadCronEntries();
 }
@@ -407,7 +413,7 @@ async function loadCronEntries() {
       <tr>
         <td class="mono">${esc(en.schedule)}</td>
         <td class="mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(en.command)}">${esc(en.command)}</td>
-        <td>${isOperator ? `<button class="btn btn-sm btn-danger" onclick="deleteCronEntry(${en.index}, this)"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
+        <td>${canDeleteCron ? `<button class="btn btn-sm btn-danger" onclick="deleteCronEntry(${en.index}, this)"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
       </tr>
     `).join('');
   } catch (e) {

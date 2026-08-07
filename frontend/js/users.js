@@ -1,5 +1,5 @@
 Auth.requireAuth();
-Auth.requireAdmin();
+Auth.requirePermission('users', 'read');
 
 const me = Auth.getUser();
 
@@ -43,10 +43,80 @@ const toast = (msg, type = 'info') => {
 
 const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const ROLE_ORDER = ['admin', 'operator', 'viewer'];
+/* ===== PERMISSIONS ===== */
+const PERM_CATEGORIES = [
+  { key: 'apps',  label: 'Apps',        icon: 'fa-cubes' },
+  { key: 'files', label: 'Files',       icon: 'fa-folder-open' },
+  { key: 'cron',  label: 'Cron Jobs',   icon: 'fa-clock' },
+  { key: 'sites', label: 'Sites & SSL', icon: 'fa-server' },
+  { key: 'users', label: 'Users',       icon: 'fa-user-shield' },
+];
+const PERM_ACTIONS = ['read', 'write', 'delete'];
 
-function roleBadge(role) {
-  return `<span class="role-badge rb-${role}">${role}</span>`;
+function hasPerm(u, cat, action) {
+  return !!(u.permissions && u.permissions[cat] && u.permissions[cat][action]);
+}
+
+function defaultPermissions() {
+  const p = {};
+  PERM_CATEGORIES.forEach(c => { p[c.key] = { read: c.key !== 'users', write: false, delete: false }; });
+  return p;
+}
+
+function renderPermissionGrid(permissions) {
+  const grid = document.getElementById('mPermGrid');
+  grid.innerHTML = `
+    <table>
+      <thead><tr><th>Category</th><th>Read</th><th>Write</th><th>Delete</th></tr></thead>
+      <tbody>
+        ${PERM_CATEGORIES.map(c => `
+          <tr>
+            <td><i class="fa-solid ${c.icon}"></i> ${c.label}</td>
+            ${PERM_ACTIONS.map(a => `
+              <td><input type="checkbox" class="permChk" data-cat="${c.key}" data-action="${a}" ${permissions[c.key]?.[a] ? 'checked' : ''}/></td>
+            `).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  // Delete implies write implies read, and unchecking a lower tier clears the ones above it.
+  grid.querySelectorAll('.permChk').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const { cat, action } = chk.dataset;
+      const row = [...grid.querySelectorAll(`.permChk[data-cat="${cat}"]`)];
+      const get = a => row.find(c => c.dataset.action === a);
+      if (chk.checked) {
+        if (action === 'write') get('read').checked = true;
+        if (action === 'delete') { get('read').checked = true; get('write').checked = true; }
+      } else {
+        if (action === 'read') { get('write').checked = false; get('delete').checked = false; }
+        if (action === 'write') get('delete').checked = false;
+      }
+    });
+  });
+}
+
+function getSelectedPermissions() {
+  const p = {};
+  PERM_CATEGORIES.forEach(c => {
+    p[c.key] = {};
+    PERM_ACTIONS.forEach(a => {
+      p[c.key][a] = document.querySelector(`.permChk[data-cat="${c.key}"][data-action="${a}"]`)?.checked || false;
+    });
+  });
+  return p;
+}
+
+function permsSummary(u) {
+  const full = PERM_CATEGORIES.every(c => PERM_ACTIONS.every(a => hasPerm(u, c.key, a)));
+  if (full) return '<span class="role-badge rb-admin">Full access</span>';
+  const active = PERM_CATEGORIES.filter(c => PERM_ACTIONS.some(a => hasPerm(u, c.key, a)));
+  if (!active.length) return '<span class="role-badge rb-viewer">No access</span>';
+  return active.map(c => {
+    const flags = PERM_ACTIONS.filter(a => hasPerm(u, c.key, a)).map(a => a[0].toUpperCase()).join('');
+    return `<span class="role-badge rb-operator" title="${c.label}: ${flags}">${c.label.split(' ')[0]} ${flags}</span>`;
+  }).join(' ');
 }
 
 function fmtDate(iso) {
@@ -88,19 +158,9 @@ function renderAppChecklist(selected) {
     : '<div style="color:var(--muted);font-size:.8rem">No applications found.</div>';
 }
 
-function setAppsGroupMode(role, selected) {
+function setAppsGroupMode(selected) {
   const allAppsChk = document.getElementById('mAllApps');
   const list = document.getElementById('mAppList');
-  const group = document.getElementById('appsGroup');
-  if (role === 'admin') {
-    group.style.opacity = '.5';
-    allAppsChk.checked = true;
-    allAppsChk.disabled = true;
-    list.style.display = 'none';
-    return;
-  }
-  group.style.opacity = '1';
-  allAppsChk.disabled = false;
   allAppsChk.checked = selected.length === 0;
   list.style.display = allAppsChk.checked ? 'none' : 'block';
 }
@@ -109,18 +169,13 @@ document.getElementById('mAllApps').onchange = () => {
   document.getElementById('mAppList').style.display = document.getElementById('mAllApps').checked ? 'none' : 'block';
 };
 
-document.getElementById('mRole').addEventListener('change', () => {
-  const selected = [...document.querySelectorAll('.mAppChk:checked')].map(c => c.value);
-  setAppsGroupMode(document.getElementById('mRole').value, selected);
-});
-
 function getSelectedApps() {
   if (document.getElementById('mAllApps').checked) return [];
   return [...document.querySelectorAll('.mAppChk:checked')].map(c => c.value);
 }
 
 function appsSummary(u) {
-  if (u.role === 'admin' || !u.allowedApps || !u.allowedApps.length) return '<span style="color:var(--muted)">All</span>';
+  if (!u.allowedApps || !u.allowedApps.length) return '<span style="color:var(--muted)">All</span>';
   return `${u.allowedApps.length} app${u.allowedApps.length === 1 ? '' : 's'}`;
 }
 
@@ -141,7 +196,7 @@ async function loadSitesOnce() {
 }
 
 function sitesForUser(u) {
-  if (u.role === 'admin' || !u.allowedApps || !u.allowedApps.length) return allSites;
+  if (!u.allowedApps || !u.allowedApps.length) return allSites;
   // A nodejs site can be granted by its site name OR its PM2 process's own name (see
   // backend/lib/sites.js's canAccessSite) — check both so this preview matches what
   // the user would actually see.
@@ -155,11 +210,12 @@ function badge(st) {
 
 function renderUserApps(u) {
   const sites = sitesForUser(u);
-  // Buttons here reflect what THIS user's own role permits (Permission Matrix: Deploy
-  // and Restart/Stop/Start are operator+admin only) — not what the viewing admin could
+  // Buttons here reflect what THIS user's own permissions allow (apps.write for
+  // restart/stop/start, files.write for deploy) — not what the viewing admin could
   // always do — so this panel accurately answers "what can this user do", not "what
   // could I do to their apps".
-  const canOperate = u.role === 'admin' || u.role === 'operator';
+  const canOperate = hasPerm(u, 'apps', 'write');
+  const canDeploy = hasPerm(u, 'files', 'write');
   const restartable = canOperate ? sites.filter(s => s.type === 'nodejs' && s.pm2Id !== null) : [];
 
   if (!sites.length) {
@@ -168,7 +224,7 @@ function renderUserApps(u) {
 
   return `
     <div style="padding:14px 20px">
-      ${!canOperate ? `<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px"><i class="fa-solid fa-eye"></i> Viewer role — read-only, no actions available.</div>` : ''}
+      ${!canOperate && !canDeploy ? `<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px"><i class="fa-solid fa-eye"></i> Read-only — no actions available.</div>` : ''}
       ${restartable.length ? `
         <div style="margin-bottom:10px">
           <button class="btn btn-ghost btn-sm" onclick="restartAllForUser('${esc(u.id)}', this)">
@@ -186,16 +242,17 @@ function renderUserApps(u) {
               <td>${s.type === 'nodejs' ? badge(s.status) : '<span style="color:var(--muted)">—</span>'}</td>
               <td>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
-                  ${canOperate ? `
+                  ${canDeploy ? `
                     <button class="btn btn-ghost btn-sm" onclick="openDeployModal('${esc(s.id)}','${esc(s.name)}')" title="Deploy">
                       <i class="fa-solid fa-upload"></i>
                     </button>
-                    ${s.type === 'nodejs' && s.pm2Id !== null ? `
-                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'restart',this)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
-                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'stop',this)" title="Stop"><i class="fa-solid fa-stop"></i></button>
-                      <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'start',this)" title="Start"><i class="fa-solid fa-play"></i></button>
-                    ` : ''}
-                  ` : '<span style="color:var(--muted)">—</span>'}
+                  ` : ''}
+                  ${canOperate && s.type === 'nodejs' && s.pm2Id !== null ? `
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'restart',this)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'stop',this)" title="Stop"><i class="fa-solid fa-stop"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="appAction(${s.pm2Id},'start',this)" title="Start"><i class="fa-solid fa-play"></i></button>
+                  ` : ''}
+                  ${!canDeploy && !(canOperate && s.type === 'nodejs' && s.pm2Id !== null) ? '<span style="color:var(--muted)">—</span>' : ''}
                 </div>
               </td>
             </tr>
@@ -294,7 +351,7 @@ function renderUsers() {
             <span>${esc(u.username)}${isSelf ? ' <span style="font-size:.7rem;color:var(--muted)">(you)</span>' : ''}</span>
           </div>
         </td>
-        <td>${roleBadge(u.role)}</td>
+        <td>${permsSummary(u)}</td>
         <td style="font-size:.85rem">${appsSummary(u)}</td>
         <td style="color:var(--muted);font-size:.8rem">${fmtDate(u.created_at)}</td>
         <td>
@@ -325,12 +382,12 @@ async function openAddModal() {
   document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-user-plus"></i> Add User';
   document.getElementById('mUsername').value = '';
   document.getElementById('mPassword').value = '';
-  document.getElementById('mRole').value = 'viewer';
+  renderPermissionGrid(defaultPermissions());
   document.getElementById('pwdGroup').classList.remove('hidden');
   document.getElementById('modalErr').classList.add('hidden');
   document.getElementById('modalErr').textContent = '';
   renderAppChecklist([]);
-  setAppsGroupMode('viewer', []);
+  setAppsGroupMode([]);
   document.getElementById('userModal').classList.remove('hidden');
   document.getElementById('mUsername').focus();
 }
@@ -343,13 +400,13 @@ async function openEditModal(id) {
   document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-pen"></i> Edit User';
   document.getElementById('mUsername').value = u.username;
   document.getElementById('mPassword').value = '';
-  document.getElementById('mRole').value = u.role;
+  renderPermissionGrid(u.permissions || defaultPermissions());
   document.getElementById('pwdGroup').classList.add('hidden');
   document.getElementById('modalErr').classList.add('hidden');
   document.getElementById('modalErr').textContent = '';
   const selected = u.allowedApps || [];
   renderAppChecklist(selected);
-  setAppsGroupMode(u.role, selected);
+  setAppsGroupMode(selected);
   document.getElementById('userModal').classList.remove('hidden');
   document.getElementById('mUsername').focus();
 }
@@ -368,7 +425,7 @@ document.getElementById('userModal').addEventListener('click', e => {
 document.getElementById('modalSave').onclick = async () => {
   const username = document.getElementById('mUsername').value.trim();
   const password = document.getElementById('mPassword').value;
-  const role     = document.getElementById('mRole').value;
+  const permissions = getSelectedPermissions();
   const errEl    = document.getElementById('modalErr');
 
   errEl.classList.add('hidden');
@@ -387,10 +444,10 @@ document.getElementById('modalSave').onclick = async () => {
 
   try {
     if (editingId) {
-      await Auth.apiFetch(`/users/${editingId}`, { method: 'PUT', body: JSON.stringify({ username, role, allowedApps }) });
+      await Auth.apiFetch(`/users/${editingId}`, { method: 'PUT', body: JSON.stringify({ username, permissions, allowedApps }) });
       toast('User updated', 'success');
     } else {
-      await Auth.apiFetch('/users', { method: 'POST', body: JSON.stringify({ username, password, role, allowedApps }) });
+      await Auth.apiFetch('/users', { method: 'POST', body: JSON.stringify({ username, password, permissions, allowedApps }) });
       toast('User created', 'success');
     }
     closeModal();

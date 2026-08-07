@@ -5,8 +5,9 @@ const APP_ID = params.get('id');
 if (!APP_ID) { location.href = '/'; }
 
 const user = Auth.getUser();
-const isAdmin    = user?.role === 'admin';
-const isOperator = user?.role === 'admin' || user?.role === 'operator';
+const canManageUsers = Auth.hasPermission('users', 'read');
+const isOperator = Auth.hasPermission('apps', 'write');
+const isAdmin    = Auth.hasPermission('apps', 'delete');
 
 /* ===== THEME ===== */
 let cpuChart, memChart;
@@ -24,7 +25,7 @@ document.getElementById('themeToggle').onclick = () =>
 if (user) {
   document.getElementById('uName').textContent = user.username;
   document.getElementById('uAvatar').textContent = user.username[0].toUpperCase();
-  if (isAdmin) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (canManageUsers) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
 }
 document.getElementById('userBtn').onclick = e => {
   e.stopPropagation();

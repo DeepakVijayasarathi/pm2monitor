@@ -1,8 +1,9 @@
 Auth.requireAuth();
 
 const me = Auth.getUser();
-const isAdmin    = me?.role === 'admin';
-const isOperator = me?.role === 'admin' || me?.role === 'operator';
+const canManageUsers = Auth.hasPermission('users', 'read');
+const isOperator = Auth.hasPermission('files', 'write');
+const isAdmin    = Auth.hasPermission('files', 'delete');
 
 const params = new URLSearchParams(location.search);
 const SITE_ID = params.get('site');
@@ -24,7 +25,7 @@ document.getElementById('themeToggle').onclick = () =>
 if (me) {
   document.getElementById('uName').textContent = me.username;
   document.getElementById('uAvatar').textContent = me.username[0].toUpperCase();
-  if (isAdmin) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (canManageUsers) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
 }
 document.getElementById('userBtn').onclick = e => {
   e.stopPropagation();
@@ -167,7 +168,7 @@ function updateBulkBar() {
   bar.classList.toggle('hidden', count === 0);
   document.getElementById('bulkCompressBtn').classList.toggle('hidden', !isOperator);
   document.getElementById('bulkMoveBtn').classList.toggle('hidden', !isOperator);
-  document.getElementById('bulkDeleteBtn').classList.toggle('hidden', !isOperator);
+  document.getElementById('bulkDeleteBtn').classList.toggle('hidden', !isAdmin);
   document.getElementById('selectAll').checked = count > 0 && count === getVisibleEntries().length;
 }
 
@@ -219,7 +220,7 @@ function renderTable() {
     if (isAdmin) {
       menu.push(`<button onclick="openPermissions('${esc(full)}','${esc(e.name)}','${e.mode}')"><i class="fa-solid fa-lock"></i> Permissions</button>`);
     }
-    if (isOperator && (e.type === 'file' || isAdmin)) {
+    if (isAdmin) {
       menu.push(`<button onclick="deleteEntry('${esc(full)}')" style="color:var(--red)"><i class="fa-solid fa-trash"></i> Delete</button>`);
     }
 

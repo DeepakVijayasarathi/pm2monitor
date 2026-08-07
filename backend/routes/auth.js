@@ -17,8 +17,8 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(String(password), user.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const token = signToken({ id: user.id, username: user.username, role: user.role, allowedApps: user.allowedApps || [] });
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role, allowedApps: user.allowedApps || [] } });
+    const token = signToken({ id: user.id, username: user.username, permissions: user.permissions, allowedApps: user.allowedApps || [] });
+    res.json({ token, user: { id: user.id, username: user.username, permissions: user.permissions, allowedApps: user.allowedApps || [] } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { findById } = require('../users');
+const { findById, hasPermission } = require('../users');
 
 // Secrets that have shipped as defaults in this project's Dockerfile/code history.
 // Anyone who has ever read either file knows these values, so treat them as public.
@@ -39,9 +39,9 @@ function verifyToken(token) {
   try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
 }
 
-// Re-reads role/allowedApps from disk on every request so admin changes
-// (role, allowed apps) take effect immediately instead of waiting for the
-// user's existing JWT to expire and them to log back in.
+// Re-reads permissions/allowedApps from disk on every request so admin changes take
+// effect immediately instead of waiting for the user's existing JWT to expire and them
+// to log back in.
 function authenticateToken(req, res, next) {
   const header = req.headers['authorization'];
   const token = header && header.startsWith('Bearer ') && header.slice(7);
@@ -50,19 +50,19 @@ function authenticateToken(req, res, next) {
   if (!payload) return res.status(403).json({ error: 'Invalid or expired token' });
   const live = findById(payload.id);
   if (!live) return res.status(403).json({ error: 'User no longer exists' });
-  req.user = { id: live.id, username: live.username, role: live.role, allowedApps: live.allowedApps || [] };
+  req.user = { id: live.id, username: live.username, permissions: live.permissions, allowedApps: live.allowedApps || [] };
   next();
 }
 
-// Middleware factory — usage: requireRole('admin') or requireRole('admin','operator')
-function requireRole(...roles) {
+// Middleware factory — usage: requirePermission('apps', 'write')
+function requirePermission(category, action) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: `Requires role: ${roles.join(' or ')}` });
+    if (!hasPermission(req.user, category, action)) {
+      return res.status(403).json({ error: `Requires ${category}.${action} permission` });
     }
     next();
   };
 }
 
-module.exports = { authenticateToken, verifyToken, signToken, requireRole };
+module.exports = { authenticateToken, verifyToken, signToken, requirePermission };

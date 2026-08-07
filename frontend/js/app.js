@@ -93,12 +93,14 @@ document.getElementById('themeToggle').onclick = () =>
 
 /* ===== USER MENU ===== */
 const user = Auth.getUser();
-const isAdmin    = user?.role === 'admin';
-const isOperator = user?.role === 'admin' || user?.role === 'operator';
+const canManageUsers = Auth.hasPermission('users', 'read');
+const isOperator = Auth.hasPermission('apps', 'write');
+const isAdmin    = Auth.hasPermission('apps', 'delete');
 if (user) {
   document.getElementById('uName').textContent = user.username;
   document.getElementById('uAvatar').textContent = user.username[0].toUpperCase();
-  if (isAdmin) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  if (canManageUsers) document.querySelectorAll('.admin-only').forEach(e => e.classList.remove('hidden'));
+  // Restart-all requires apps.delete (the elevated tier), same as an individual app delete.
   if (!isAdmin) {
     const rab = document.getElementById('restartAllBtn');
     if (rab) rab.classList.add('hidden');

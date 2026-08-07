@@ -2,7 +2,8 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
+const { hasPermission } = require('../users');
 const { listMergedSites, resolveSite, assertSafeZipEntries } = require('../lib/sites');
 
 const router = express.Router();
@@ -19,19 +20,21 @@ const upload = multer({
 });
 
 // GET /api/sites — all authenticated users, filtered to allowed apps.
-// Viewers get just the site list; operator/admin also get discovery warnings + the configured root.
+// The site list itself stays visible to anyone authenticated (files/cron/deploy pages
+// all need it just to navigate); users without sites.write get the list only, while
+// sites.write-capable users also get discovery warnings + the configured root.
 router.get('/', async (req, res) => {
   try {
     const { sites, warnings, homeRoot } = await listMergedSites(req.user);
-    if (req.user.role === 'viewer') return res.json({ sites });
+    if (!hasPermission(req.user, 'sites', 'write')) return res.json({ sites });
     res.json({ sites, warnings, homeRoot });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list sites', detail: err.message });
   }
 });
 
-// POST /api/sites/:id/upload — operator + admin, uploads a .zip and extracts it into the site folder
-router.post('/:id/upload', requireRole('operator', 'admin'), upload.single('file'), async (req, res) => {
+// POST /api/sites/:id/upload — files.write, uploads a .zip and extracts it into the site folder
+router.post('/:id/upload', requirePermission('files', 'write'), upload.single('file'), async (req, res) => {
   try {
     const site = await resolveSite(req.params.id, req.user);
     if (!site) return res.status(404).json({ error: 'Site not found' });

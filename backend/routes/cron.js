@@ -1,5 +1,5 @@
 const express = require('express');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const { resolveSite } = require('../lib/sites');
 const cron = require('../lib/crontab');
 const audit = require('../lib/audit');
@@ -12,8 +12,8 @@ async function siteRootOr404(req, res) {
   return site;
 }
 
-// GET /api/sites/:id/cron — any authenticated user with access to the site
-router.get('/:id/cron', async (req, res) => {
+// GET /api/sites/:id/cron — cron.read
+router.get('/:id/cron', requirePermission('cron', 'read'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -24,8 +24,8 @@ router.get('/:id/cron', async (req, res) => {
   }
 });
 
-// POST /api/sites/:id/cron — operator + admin
-router.post('/:id/cron', requireRole('operator', 'admin'), async (req, res) => {
+// POST /api/sites/:id/cron — cron.write
+router.post('/:id/cron', requirePermission('cron', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -38,8 +38,8 @@ router.post('/:id/cron', requireRole('operator', 'admin'), async (req, res) => {
   }
 });
 
-// PUT /api/sites/:id/cron/:index — operator + admin
-router.put('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res) => {
+// PUT /api/sites/:id/cron/:index — cron.write
+router.put('/:id/cron/:index', requirePermission('cron', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -52,8 +52,8 @@ router.put('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res
   }
 });
 
-// DELETE /api/sites/:id/cron/:index — operator + admin
-router.delete('/:id/cron/:index', requireRole('operator', 'admin'), async (req, res) => {
+// DELETE /api/sites/:id/cron/:index — cron.delete
+router.delete('/:id/cron/:index', requirePermission('cron', 'delete'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;

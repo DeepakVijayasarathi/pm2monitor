@@ -1,12 +1,12 @@
 const express = require('express');
-const { requireRole } = require('../middleware/auth');
-const { listUsers, createUser, updateUser, deleteUser, findById, ROLES } = require('../users');
+const { requirePermission } = require('../middleware/auth');
+const { listUsers, createUser, updateUser, deleteUser, findById, hasPermission } = require('../users');
 const audit = require('../lib/audit');
 
 const router = express.Router();
 
-// GET /api/users — admin only
-router.get('/', requireRole('admin'), (req, res) => {
+// GET /api/users — users.read
+router.get('/', requirePermission('users', 'read'), (req, res) => {
   try {
     res.json({ users: listUsers() });
   } catch (err) {
@@ -14,44 +14,44 @@ router.get('/', requireRole('admin'), (req, res) => {
   }
 });
 
-// POST /api/users — admin only
-router.post('/', requireRole('admin'), async (req, res) => {
+// POST /api/users — users.write
+router.post('/', requirePermission('users', 'write'), async (req, res) => {
   try {
-    const { username, password, role, allowedApps } = req.body || {};
-    if (!username || !password || !role) {
-      return res.status(400).json({ error: 'username, password and role are required' });
+    const { username, password, permissions, allowedApps } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username and password are required' });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
-    const user = await createUser(username, password, role, allowedApps);
-    audit.log(req.user, 'user.create', user.username, { role: user.role });
+    const user = await createUser(username, password, permissions, allowedApps);
+    audit.log(req.user, 'user.create', user.username, { permissions: user.permissions });
     res.status(201).json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// PUT /api/users/:id — update role or username (admin only)
-router.put('/:id', requireRole('admin'), async (req, res) => {
+// PUT /api/users/:id — update permissions/username/allowedApps (users.write)
+router.put('/:id', requirePermission('users', 'write'), async (req, res) => {
   try {
-    const { role, username, allowedApps } = req.body || {};
-    const user = await updateUser(req.params.id, { role, username, allowedApps });
-    audit.log(req.user, 'user.update', user.username, { role, username, allowedApps });
+    const { permissions, username, allowedApps } = req.body || {};
+    const user = await updateUser(req.params.id, { permissions, username, allowedApps });
+    audit.log(req.user, 'user.update', user.username, { permissions, username, allowedApps });
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// PUT /api/users/:id/password — admin changes anyone; user changes own
+// PUT /api/users/:id/password — users.write changes anyone; user changes own
 router.put('/:id/password', async (req, res) => {
   try {
     const { password } = req.body || {};
     if (!password || password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
-    if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
+    if (!hasPermission(req.user, 'users', 'write') && req.user.id !== req.params.id) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     const target = findById(req.params.id);
@@ -63,8 +63,8 @@ router.put('/:id/password', async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id — admin only, cannot delete self
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+// DELETE /api/users/:id — users.delete, cannot delete self
+router.delete('/:id', requirePermission('users', 'delete'), async (req, res) => {
   try {
     if (req.user.id === req.params.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
@@ -76,11 +76,6 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
-
-// GET /api/users/roles — return available roles
-router.get('/roles', requireRole('admin'), (req, res) => {
-  res.json({ roles: ROLES });
 });
 
 module.exports = router;

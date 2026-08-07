@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const { resolveSite, safeJoin, assertSafeZipEntries } = require('../lib/sites');
 const audit = require('../lib/audit');
 
@@ -33,7 +33,7 @@ const upload = multer({
 });
 
 // GET /api/sites/:id/files?path= — list a directory
-router.get('/:id/files', async (req, res) => {
+router.get('/:id/files', requirePermission('files', 'read'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -70,7 +70,7 @@ router.get('/:id/files', async (req, res) => {
 });
 
 // GET /api/sites/:id/files/content?path= — read a text file
-router.get('/:id/files/content', async (req, res) => {
+router.get('/:id/files/content', requirePermission('files', 'read'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -94,7 +94,7 @@ router.get('/:id/files/content', async (req, res) => {
 });
 
 // PUT /api/sites/:id/files/content — save file content
-router.put('/:id/files/content', requireRole('operator', 'admin'), async (req, res) => {
+router.put('/:id/files/content', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -116,7 +116,7 @@ router.put('/:id/files/content', requireRole('operator', 'admin'), async (req, r
 });
 
 // POST /api/sites/:id/files/mkdir — create a folder
-router.post('/:id/files/mkdir', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/files/mkdir', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -133,7 +133,7 @@ router.post('/:id/files/mkdir', requireRole('operator', 'admin'), async (req, re
 });
 
 // POST /api/sites/:id/files/rename — rename/move within the site root
-router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/files/rename', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -155,7 +155,7 @@ router.post('/:id/files/rename', requireRole('operator', 'admin'), async (req, r
 });
 
 // POST /api/sites/:id/files/copy — copy a file or folder (recursive) within the site root
-router.post('/:id/files/copy', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/files/copy', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -179,8 +179,11 @@ router.post('/:id/files/copy', requireRole('operator', 'admin'), async (req, res
   }
 });
 
-// PUT /api/sites/:id/files/permissions — chmod (admin only)
-router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
+// PUT /api/sites/:id/files/permissions — chmod. Grouped under files.delete (the
+// elevated tier for the files category) rather than files.write, same as the old
+// admin-only gate — this changes ownership/mode bits on disk, a bigger blast radius
+// than ordinary file edits.
+router.put('/:id/files/permissions', requirePermission('files', 'delete'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -201,7 +204,7 @@ router.put('/:id/files/permissions', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/sites/:id/files/extract — extract a .zip already on the server into a sibling folder
-router.post('/:id/files/extract', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/files/extract', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -238,7 +241,7 @@ router.post('/:id/files/extract', requireRole('operator', 'admin'), async (req, 
 });
 
 // POST /api/sites/:id/files/compress — compress selected files/folders into a new .zip in the current dir
-router.post('/:id/files/compress', requireRole('operator', 'admin'), async (req, res) => {
+router.post('/:id/files/compress', requirePermission('files', 'write'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -266,8 +269,8 @@ router.post('/:id/files/compress', requireRole('operator', 'admin'), async (req,
   }
 });
 
-// DELETE /api/sites/:id/files/bulk — delete multiple files/folders; folders still require admin
-router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, res) => {
+// DELETE /api/sites/:id/files/bulk — delete multiple files/folders
+router.delete('/:id/files/bulk', requirePermission('files', 'delete'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -282,7 +285,6 @@ router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, r
         const stat = await fs.promises.stat(target).catch(() => null);
         if (!stat) throw new Error('Not found');
         if (stat.isDirectory()) {
-          if (req.user.role !== 'admin') throw new Error('Deleting a folder requires the admin role');
           await fs.promises.rm(target, { recursive: true, force: true });
         } else {
           await fs.promises.unlink(target);
@@ -300,7 +302,7 @@ router.delete('/:id/files/bulk', requireRole('operator', 'admin'), async (req, r
 });
 
 // POST /api/sites/:id/files/bulk-download — zip up a selection and stream it back
-router.post('/:id/files/bulk-download', async (req, res) => {
+router.post('/:id/files/bulk-download', requirePermission('files', 'read'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -329,8 +331,8 @@ router.post('/:id/files/bulk-download', async (req, res) => {
   }
 });
 
-// DELETE /api/sites/:id/files?path= — delete a file, or a folder (recursive delete is admin-only)
-router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) => {
+// DELETE /api/sites/:id/files?path= — delete a file or a folder (recursive)
+router.delete('/:id/files', requirePermission('files', 'delete'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -342,9 +344,6 @@ router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) =
     if (!stat) return res.status(404).json({ error: 'Path not found' });
 
     if (stat.isDirectory()) {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Deleting a folder requires the admin role' });
-      }
       await fs.promises.rm(target, { recursive: true, force: true });
     } else {
       await fs.promises.unlink(target);
@@ -357,7 +356,7 @@ router.delete('/:id/files', requireRole('operator', 'admin'), async (req, res) =
 });
 
 // GET /api/sites/:id/files/download?path= — stream a file download
-router.get('/:id/files/download', async (req, res) => {
+router.get('/:id/files/download', requirePermission('files', 'read'), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;
@@ -374,7 +373,7 @@ router.get('/:id/files/download', async (req, res) => {
 });
 
 // POST /api/sites/:id/files/upload — upload individual file(s) into a directory
-router.post('/:id/files/upload', requireRole('operator', 'admin'), upload.array('files', 20), async (req, res) => {
+router.post('/:id/files/upload', requirePermission('files', 'write'), upload.array('files', 20), async (req, res) => {
   try {
     const site = await siteRootOr404(req, res);
     if (!site) return;

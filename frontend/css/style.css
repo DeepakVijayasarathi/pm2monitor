@@ -576,6 +576,15 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--indigo)}
 .pc-free{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,0.2)}
 .pc-used{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
 
+/* ===== PERMISSION GRID (Add/Edit User modal) ===== */
+.perm-grid table{width:100%;border-collapse:collapse;font-size:0.8rem}
+.perm-grid th{text-align:center;font-size:0.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);padding:0 6px 8px;font-weight:700}
+.perm-grid th:first-child{text-align:left}
+.perm-grid td{padding:7px 6px;border-top:1px solid var(--border);text-align:center}
+.perm-grid td:first-child{text-align:left;font-weight:600;white-space:nowrap}
+.perm-grid td:first-child i{color:var(--text-3);width:16px;text-align:center;margin-right:6px}
+.perm-grid input[type=checkbox]{cursor:pointer}
+
 /* ===== MODAL ===== */
 .modal-ov{
   position:fixed;inset:0;
